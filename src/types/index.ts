@@ -81,3 +81,18 @@ export interface ParsedSession {
   totalTokens: number;
   [key: string]: unknown;
 }
+
+// Pagination types
+export interface SessionQueryOptions {
+  limit?: number;
+  offset?: number;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
