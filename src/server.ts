@@ -16,7 +16,7 @@ const main = async () => {
   const jobQueue = await createJobQueue();
   const jobProcessor = createJobProcessor(jobQueue, sessionRepo);
 
-  const app = createApp(sessionRepo, { logsDir: config.logsDir }, jobQueue);
+  const app = createApp({ sessions: sessionRepo }, { logsDir: config.logsDir }, jobQueue);
 
   // Start job processor
   jobProcessor.start();

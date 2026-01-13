@@ -2,103 +2,28 @@
 
 This document analyzes how the Session Analyzer UI scales with varying data volumes.
 
-## Implemented Improvements (v1.1)
-
-The following improvements have been implemented to address scalability concerns:
+## Implemented Improvements (v1.2)
 
 | Improvement | Status | Notes |
 |-------------|--------|-------|
 | Default date filter (last 7 days) | Done | Reduces initial data load |
 | Session detail caching | Done | LRU cache with max 50 sessions |
-| List view pagination (100/page) | Done | "Load More" button for additional sessions |
+| List view pagination (100/page) | Done | "Load More" button fetches next page from server |
 | Event aggregation in Gantt | Done | Merges consecutive same-type events |
 | Server-side pagination API | Done | `?limit=N&offset=M&dateFrom=X&dateTo=Y` |
+| Server-side filtering | Done | `?folder=X&branch=Y&ticket=Z` query params |
 | XSS protection | Done | HTML escaping for user data |
 | Clear Filters button | Done | Easy reset to see all sessions |
-
-## Summary
-
-The current implementation works well for small to moderate usage (~50 sessions, ~100 events each) but will degrade significantly with larger datasets due to:
-
-- No server-side pagination
-- Client-side filtering on full dataset
-- DOM-heavy rendering without virtualization
 
 ## Current Architecture
 
 ```
-API: getAllSessions() → Full dataset
+API: getSessions({ limit, offset, filters }) → Paginated, filtered dataset
         ↓
-Frontend: allSessions[] → Client-side filter
+Frontend: Renders current page, requests more on demand
         ↓
-Render: .map() → DOM node per session
+Render: Only visible sessions rendered at a time
 ```
-
-## Scalability Issues
-
-### 1. No Server-Side Pagination
-
-**Location:** `src/api/app.ts:46-59`
-
-```typescript
-const sessions = await sessionRepo.getAllSessions();
-```
-
-The `/api/sessions` endpoint returns ALL sessions in a single response. As sessions accumulate, this causes:
-- Increasing response payload size
-- Longer initial load times
-- Higher memory usage in browser
-
-### 2. Client-Side Filtering Only
-
-**Location:** `public/index.html:500-516`
-
-All filtering (date range, folder, branch, ticket) runs in the browser after loading the complete dataset:
-
-```javascript
-return allSessions.filter(s => {
-  if (dateFrom && sessionDate < dateFrom) return false;
-  // ... more filters
-});
-```
-
-This means users must download all data even when viewing a filtered subset.
-
-### 3. List View Renders All Sessions
-
-**Location:** `public/index.html:571-586`
-
-```javascript
-listView.innerHTML = sessions.map(s => `
-  <div class="session-card">...</div>
-`).join('');
-```
-
-Every filtered session creates a DOM node. With 500+ sessions, this causes:
-- Layout thrashing during render
-- Slow scrolling performance
-- High memory usage
-
-### 4. Gantt Chart SVG Complexity
-
-**Location:** `public/index.html:744-792`
-
-Each session row in the Gantt view:
-- Creates an SVG element
-- Renders every event as a `<rect>` element
-- Has no aggregation for adjacent same-type events
-
-A session with 500 events generates 500 SVG rect elements. Combined across many sessions, DOM element counts become problematic.
-
-### 5. Hardcoded Linear Ticket Limit
-
-**Location:** `src/api/app.ts:249`
-
-```typescript
-const tickets = await client.getIssues({ limit: 100 });
-```
-
-Linear sync is capped at 100 tickets regardless of workspace size.
 
 ## What Works Well
 
@@ -106,53 +31,45 @@ Linear sync is capped at 100 tickets regardless of workspace size.
 |---------|---------------|-------|
 | Session summaries | API strips `events`/`annotations` from list | Reduces payload |
 | Event list limiting | Max 50 events in detail panel | Smart filtering prioritizes important events |
-| Small segment culling | Skips segments < 0.1% width | Reduces SVG complexity slightly |
+| Small segment culling | Skips segments < 0.1% width | Reduces SVG complexity |
+| Server-side pagination | Limit/offset with filters | Only fetches needed data |
+| Server-side filtering | All filters applied server-side | No client-side filtering overhead |
 
 ## Expected Performance
 
 | Sessions | Events/Session | Est. DOM Elements | Expected UX |
 |----------|----------------|-------------------|-------------|
-| 20 | 50 | ~1,500 | Smooth |
-| 50 | 100 | ~6,000 | Good |
-| 100 | 100 | ~12,000 | Noticeable lag on filter/render |
-| 200 | 200 | ~45,000 | Sluggish interactions |
-| 500 | 200 | ~100,000+ | Likely unusable |
+| 100 (page) | 50 | ~1,500 | Smooth |
+| 100 (page) | 100 | ~3,000 | Good |
+| 100 (page) | 200 | ~6,000 | Good |
+| 500+ total | N/A | 100 per page | Smooth (paginated) |
 
-## Recommendations
+## Remaining Improvements
 
-### Short-term Improvements
+### Medium-term
 
-1. **Default date filter** - Show last 7 days by default instead of all time
-2. **Lazy load events** - Don't fetch full session with events until detail panel opens
-3. **Limit list view** - Show max 100 sessions with "Load more" button
-
-### Medium-term Improvements
-
-1. **Server-side pagination**
-   - Add `?limit=50&offset=0` query params to `/api/sessions`
-   - Add `?dateFrom=&dateTo=` server-side filtering
-
-2. **Virtual scrolling for list view**
+1. **Virtual scrolling for list view**
    - Only render visible rows plus buffer
    - Libraries: `virtual-scroller`, or custom with `IntersectionObserver`
+   - Would help when loading many pages via "Load More"
 
-3. **Event aggregation in Gantt**
-   - Combine adjacent same-type events into single rect
-   - Show aggregated count on hover
+2. **Increase Linear ticket sync limit**
+   - Currently capped at 100 tickets in `src/api/app.ts`
+   - Consider pagination or higher limit for larger workspaces
 
-### Long-term Improvements
+### Long-term
 
 1. **Canvas rendering for Gantt chart**
    - Single canvas element vs thousands of SVG rects
-   - Better performance for large datasets
+   - Better performance for very large datasets
    - Trade-off: more complex click handling
 
 2. **IndexedDB caching**
    - Cache sessions client-side
    - Only fetch deltas on refresh
 
-3. **WebWorker for filtering**
-   - Offload filter computation from main thread
+3. **WebWorker for heavy processing**
+   - Offload any remaining computation from main thread
    - Keeps UI responsive during large dataset operations
 
 ## Testing Recommendations

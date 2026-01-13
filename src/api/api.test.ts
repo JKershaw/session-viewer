@@ -33,7 +33,7 @@ describe('API', () => {
 
   beforeEach(async () => {
     repo = await createSessionRepository(TEST_DATA_DIR);
-    const app = createApp(repo, { logsDir: './non-existent-for-test' });
+    const app = createApp({ sessions: repo }, { logsDir: './non-existent-for-test' });
     server = app.listen(TEST_PORT);
   });
 
@@ -43,15 +43,16 @@ describe('API', () => {
     await rm(TEST_DATA_DIR, { recursive: true, force: true });
   });
 
-  test('GET /api/sessions returns empty array when no sessions', async () => {
+  test('GET /api/sessions returns paginated response when no sessions', async () => {
     const response = await fetch(`${BASE_URL}/api/sessions`);
     const data = await response.json();
 
     assert.strictEqual(response.status, 200);
-    assert.deepStrictEqual(data, []);
+    assert.deepStrictEqual(data.data, []);
+    assert.strictEqual(data.total, 0);
   });
 
-  test('GET /api/sessions returns all sessions', async () => {
+  test('GET /api/sessions returns paginated sessions', async () => {
     await repo.upsertSession(createTestSession({ id: 'session-1' }));
     await repo.upsertSession(createTestSession({ id: 'session-2' }));
 
@@ -59,7 +60,8 @@ describe('API', () => {
     const data = await response.json();
 
     assert.strictEqual(response.status, 200);
-    assert.strictEqual(data.length, 2);
+    assert.strictEqual(data.data.length, 2);
+    assert.strictEqual(data.total, 2);
   });
 
   test('GET /api/sessions/:id returns single session', async () => {
@@ -153,19 +155,6 @@ describe('API', () => {
     assert.strictEqual(response.status, 200);
     assert.strictEqual(data.data.length, 1);
     assert.strictEqual(data.data[0].id, 'new-session');
-  });
-
-  test('GET /api/sessions without pagination params returns legacy array', async () => {
-    await repo.upsertSession(createTestSession({ id: 'session-1' }));
-
-    const response = await fetch(`${BASE_URL}/api/sessions`);
-    const data = await response.json();
-
-    assert.strictEqual(response.status, 200);
-    assert.strictEqual(Array.isArray(data), true);
-    assert.strictEqual(data.length, 1);
-    // Legacy format should not have pagination metadata
-    assert.strictEqual(data.total, undefined);
   });
 
   test('GET /api/sessions caps limit at 100', async () => {
