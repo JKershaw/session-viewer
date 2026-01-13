@@ -1,4 +1,4 @@
-import type { Collection } from '@jkershaw/mangodb';
+import type { MangoCollection } from '@jkershaw/mangodb';
 import { getCollection } from './client.js';
 import type { LinearTicket } from '../types/index.js';
 
@@ -12,9 +12,9 @@ export interface TicketRepository {
 export const createTicketRepository = (
   collectionName = 'tickets'
 ): TicketRepository => {
-  let collection: Collection<LinearTicket> | null = null;
+  let collection: MangoCollection<LinearTicket> | null = null;
 
-  const getTicketCollection = async (): Promise<Collection<LinearTicket>> => {
+  const getTicketCollection = async (): Promise<MangoCollection<LinearTicket>> => {
     if (!collection) {
       collection = await getCollection<LinearTicket>(collectionName);
     }

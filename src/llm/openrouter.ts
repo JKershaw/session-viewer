@@ -74,12 +74,14 @@ export const summarizeEvents = (events: Event[]): string => {
 
     let detail = '';
     if (e.type === 'git_op') {
-      const raw = e.raw;
-      const cmd = raw.input?.command ?? raw.content ?? '';
+      const raw = e.raw as Record<string, unknown>;
+      const input = raw.input as Record<string, unknown> | undefined;
+      const cmd = input?.command ?? raw.content ?? '';
       detail = `: ${String(cmd).substring(0, 100)}`;
     } else if (e.type === 'error') {
-      const raw = e.raw;
-      const msg = raw.error?.message ?? raw.message?.content ?? 'unknown error';
+      const raw = e.raw as Record<string, unknown>;
+      const error = raw.error as Record<string, unknown> | undefined;
+      const msg = error?.message ?? e.raw.message?.content ?? 'unknown error';
       detail = `: ${String(msg).substring(0, 100)}`;
     }
 

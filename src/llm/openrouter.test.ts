@@ -81,7 +81,7 @@ describe('OpenRouter LLM Client', () => {
         linearTicketId: null,
         analyzed: false,
         events: [
-          { type: 'user_message', timestamp: '2024-01-15T10:00:00Z', tokenCount: 100, raw: {} }
+          { type: 'user_message', timestamp: '2024-01-15T10:00:00Z', tokenCount: 100, raw: { type: 'user' } }
         ],
         annotations: []
       };

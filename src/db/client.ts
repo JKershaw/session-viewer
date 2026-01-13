@@ -1,5 +1,4 @@
-import { MangoClient } from '@jkershaw/mangodb';
-import type { Db, Collection } from '@jkershaw/mangodb';
+import { MangoClient, type MangoDb, type MangoCollection } from '@jkershaw/mangodb';
 
 let client: MangoClient | null = null;
 
@@ -11,7 +10,7 @@ export const getClient = async (dataDir = './data'): Promise<MangoClient> => {
   return client;
 };
 
-export const getDb = async (dbName = 'session-viewer'): Promise<Db> => {
+export const getDb = async (dbName = 'session-viewer'): Promise<MangoDb> => {
   const c = await getClient();
   return c.db(dbName);
 };
@@ -19,7 +18,7 @@ export const getDb = async (dbName = 'session-viewer'): Promise<Db> => {
 export const getCollection = async <T extends Record<string, unknown>>(
   collectionName: string,
   dbName = 'session-viewer'
-): Promise<Collection<T>> => {
+): Promise<MangoCollection<T>> => {
   const db = await getDb(dbName);
   return db.collection<T>(collectionName);
 };

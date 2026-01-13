@@ -56,7 +56,8 @@ export const createApp = (
 
   app.get('/api/sessions/:id', async (req: Request, res: Response) => {
     try {
-      const session = await sessionRepo.getSession(req.params.id);
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const session = await sessionRepo.getSession(id);
       if (!session) {
         res.status(404).json({ error: 'Session not found' });
         return;
@@ -88,7 +89,8 @@ export const createApp = (
         return;
       }
 
-      const session = await sessionRepo.getSession(req.params.id);
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const session = await sessionRepo.getSession(id);
       if (!session) {
         res.status(404).json({ error: 'Session not found' });
         return;

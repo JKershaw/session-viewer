@@ -36,6 +36,7 @@ export interface Session {
   analyzed: boolean;
   events: Event[];
   annotations: Annotation[];
+  [key: string]: unknown;
 }
 
 export interface LinearTicket {
@@ -46,6 +47,7 @@ export interface LinearTicket {
   status: string;
   project: string;
   sessionIds: string[];
+  [key: string]: unknown;
 }
 
 export interface LogEntry {
@@ -75,4 +77,5 @@ export interface ParsedSession {
   branch: string | null;
   entries: LogEntry[];
   totalTokens: number;
+  [key: string]: unknown;
 }

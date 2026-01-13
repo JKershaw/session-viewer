@@ -1,6 +1,6 @@
 import { getClient } from './client.js';
 import type { Session } from '../types/index.js';
-import type { Collection } from '@jkershaw/mangodb';
+import type { MangoCollection } from '@jkershaw/mangodb';
 
 export interface SessionRepository {
   upsertSession: (session: Session) => Promise<void>;
@@ -11,7 +11,7 @@ export interface SessionRepository {
 
 const getSessionsCollection = async (
   dataDir: string
-): Promise<Collection<Session>> => {
+): Promise<MangoCollection<Session>> => {
   const client = await getClient(dataDir);
   const db = client.db('session-viewer');
   return db.collection<Session>('sessions');
