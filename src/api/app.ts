@@ -2,17 +2,20 @@ import express, { type Express, type Request, type Response } from 'express';
 import { join } from 'node:path';
 import type { SessionRepository } from '../db/sessions.js';
 import type { TicketRepository } from '../db/tickets.js';
+import type { JobQueue } from '../queue/jobs.js';
 import { scanAndStoreSessions, type ScanConfig } from '../parser/scanner.js';
-import {
-  createOpenRouterClient,
-  analyzeSession,
-  getOpenRouterConfig
-} from '../llm/openrouter.js';
+import { getOpenRouterConfig } from '../llm/openrouter.js';
 import {
   createLinearClient,
   getLinearConfig,
   linkSessionsToTickets
 } from '../linear/client.js';
+import {
+  correlateGitOperations,
+  parseGitCommand,
+  getRepoPath
+} from '../git/client.js';
+import { extractGitDetails } from '../parser/events.js';
 
 export interface AppConfig extends ScanConfig {
   staticDir?: string;
@@ -25,7 +28,8 @@ export interface AppRepositories {
 
 export const createApp = (
   repos: SessionRepository | AppRepositories,
-  config: AppConfig = {}
+  config: AppConfig = {},
+  jobQueue?: JobQueue
 ): Express => {
   // Support both old and new API signatures
   const sessionRepo = 'sessions' in repos ? repos.sessions : repos;
@@ -80,12 +84,17 @@ export const createApp = (
     }
   });
 
-  // Analyze a session with LLM
+  // Analyze a session with LLM (queued)
   app.post('/api/sessions/:id/analyze', async (req: Request, res: Response) => {
     try {
       const openRouterConfig = getOpenRouterConfig();
       if (!openRouterConfig) {
         res.status(400).json({ error: 'OpenRouter API key not configured. Set OPENROUTER_API_KEY environment variable.' });
+        return;
+      }
+
+      if (!jobQueue) {
+        res.status(500).json({ error: 'Job queue not initialized' });
         return;
       }
 
@@ -101,24 +110,111 @@ export const createApp = (
         return;
       }
 
-      const client = createOpenRouterClient(openRouterConfig);
-      const annotations = await analyzeSession(client, session);
+      // Enqueue job instead of processing synchronously
+      const job = await jobQueue.enqueue(id);
 
-      // Update session with annotations
-      const updatedSession = {
-        ...session,
-        analyzed: true,
-        annotations
-      };
-      await sessionRepo.upsertSession(updatedSession);
-
-      res.json({
-        message: `Analyzed session with ${annotations.length} annotations`,
-        annotations
+      res.status(202).json({
+        message: 'Analysis job queued',
+        jobId: job.id,
+        status: job.status
       });
     } catch (error) {
       console.error('Analysis error:', error);
-      res.status(500).json({ error: 'Failed to analyze session' });
+      res.status(500).json({ error: 'Failed to queue analysis' });
+    }
+  });
+
+  // Job status endpoints
+  app.get('/api/jobs', async (_req: Request, res: Response) => {
+    try {
+      if (!jobQueue) {
+        res.json([]);
+        return;
+      }
+      const jobs = await jobQueue.getAllJobs();
+      res.json(jobs);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch jobs' });
+    }
+  });
+
+  app.get('/api/jobs/:jobId', async (req: Request, res: Response) => {
+    try {
+      if (!jobQueue) {
+        res.status(404).json({ error: 'Job queue not initialized' });
+        return;
+      }
+      const jobId = Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId;
+      const job = await jobQueue.getJob(jobId);
+      if (!job) {
+        res.status(404).json({ error: 'Job not found' });
+        return;
+      }
+      res.json(job);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch job' });
+    }
+  });
+
+  // Git correlation endpoint
+  app.get('/api/sessions/:id/git-correlations', async (req: Request, res: Response) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const session = await sessionRepo.getSession(id);
+      if (!session) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+
+      // Extract git operations from session events
+      const gitEvents = session.events.filter((e) => e.type === 'git_op');
+      if (gitEvents.length === 0) {
+        res.json({ correlations: [] });
+        return;
+      }
+
+      // Parse git commands into GitOperation objects
+      const operations = gitEvents
+        .map((e) => {
+          const details = extractGitDetails(e);
+          return details ? parseGitCommand(details.command) : null;
+        })
+        .filter((op): op is NonNullable<typeof op> => op !== null);
+
+      if (operations.length === 0) {
+        res.json({ correlations: [] });
+        return;
+      }
+
+      // Get repository path and correlate
+      const repoPath = getRepoPath(session.folder);
+      const correlations = await correlateGitOperations(
+        repoPath,
+        operations,
+        { start: session.startTime, end: session.endTime }
+      );
+
+      // Convert Map to array for JSON response
+      const result = Array.from(correlations.entries()).map(([op, commit]) => ({
+        operation: {
+          type: op.type,
+          command: op.command,
+          branch: op.branch,
+          message: op.message
+        },
+        commit: commit ? {
+          hash: commit.hash,
+          shortHash: commit.shortHash,
+          message: commit.message,
+          author: commit.author,
+          timestamp: commit.timestamp
+        } : null
+      }));
+
+      res.json({ correlations: result });
+    } catch (error) {
+      console.error('Git correlation error:', error);
+      res.status(500).json({ error: 'Failed to correlate git operations' });
     }
   });
 

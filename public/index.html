@@ -393,6 +393,13 @@
           <option value="">All Tickets</option>
         </select>
       </div>
+      <div class="filter-group">
+        <label>Group By</label>
+        <select id="group-mode">
+          <option value="session">Sessions</option>
+          <option value="ticket">Tickets</option>
+        </select>
+      </div>
     </div>
 
     <div id="status" class="status"></div>
@@ -432,6 +439,7 @@
     let allTickets = [];
     let currentView = 'list';
     let axisMode = 'tokens';
+    let groupMode = 'session';
 
     // DOM Elements
     const listView = document.getElementById('list-view');
@@ -452,6 +460,7 @@
     const filterBranch = document.getElementById('filter-branch');
     const filterTicket = document.getElementById('filter-ticket');
     const axisModeSelect = document.getElementById('axis-mode');
+    const groupModeSelect = document.getElementById('group-mode');
 
     // Formatters
     const formatDate = (iso) => {
@@ -581,6 +590,67 @@
       });
     };
 
+    // Aggregation for ticket view
+    const aggregateSessionsByTicket = (sessions) => {
+      const ticketMap = new Map();
+
+      for (const session of sessions) {
+        const ticketId = session.linearTicketId || '__unlinked__';
+        if (!ticketMap.has(ticketId)) {
+          ticketMap.set(ticketId, {
+            id: ticketId,
+            ticketId,
+            sessions: [],
+            totalTokens: 0,
+            durationMs: 0,
+            startTime: session.startTime,
+            endTime: session.endTime,
+            events: [],
+            annotations: []
+          });
+        }
+
+        const aggregate = ticketMap.get(ticketId);
+        aggregate.sessions.push(session);
+        aggregate.totalTokens += session.totalTokens;
+        aggregate.durationMs += session.durationMs;
+
+        // Extend time range
+        if (new Date(session.startTime) < new Date(aggregate.startTime)) {
+          aggregate.startTime = session.startTime;
+        }
+        if (new Date(session.endTime) > new Date(aggregate.endTime)) {
+          aggregate.endTime = session.endTime;
+        }
+
+        // Merge events with session reference
+        for (const event of (session.events || [])) {
+          aggregate.events.push({ ...event, sessionId: session.id });
+        }
+      }
+
+      // Sort events by timestamp within each aggregate
+      for (const aggregate of ticketMap.values()) {
+        aggregate.events.sort((a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+      }
+
+      return Array.from(ticketMap.values());
+    };
+
+    const getRowLabel = (row) => {
+      if (groupMode === 'ticket') {
+        if (row.ticketId === '__unlinked__') {
+          return `Unlinked (${row.sessions.length})`;
+        }
+        const ticket = allTickets.find(t => t.ticketId === row.ticketId);
+        const title = ticket ? ticket.title.substring(0, 20) : '';
+        return `${row.ticketId}: ${title} (${row.sessions.length})`;
+      }
+      return row.folder.split('/').pop() || row.id.substring(0, 8);
+    };
+
     // Gantt Chart View
     const renderGanttChart = (sessions) => {
       if (sessions.length === 0) {
@@ -588,12 +658,20 @@
         return;
       }
 
-      sessions.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+      // Aggregate if in ticket mode
+      let rowData;
+      if (groupMode === 'ticket') {
+        rowData = aggregateSessionsByTicket(sessions);
+      } else {
+        rowData = sessions;
+      }
+
+      rowData.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
 
       // Calculate scale
       const maxValue = axisMode === 'tokens'
-        ? Math.max(...sessions.map(s => s.totalTokens))
-        : Math.max(...sessions.map(s => s.durationMs));
+        ? Math.max(...rowData.map(r => r.totalTokens))
+        : Math.max(...rowData.map(r => r.durationMs));
 
       const chartWidth = 800;
 
@@ -613,15 +691,16 @@
         </div>
       `;
 
-      for (const session of sessions) {
-        const events = session.events || [];
-        const label = session.folder.split('/').pop() || session.id.substring(0, 8);
+      for (const row of rowData) {
+        const events = row.events || [];
+        const label = getRowLabel(row);
+        const rowId = groupMode === 'ticket' ? row.ticketId : row.id;
 
         html += `
-          <div class="gantt-row" data-session-id="${session.id}">
-            <div class="gantt-label" title="${session.folder}">${label}</div>
-            <div class="gantt-bar-container" data-id="${session.id}">
-              ${renderGanttBar(session, events, maxValue)}
+          <div class="gantt-row" data-row-id="${rowId}">
+            <div class="gantt-label" title="${groupMode === 'ticket' ? `${row.sessions?.length || 0} sessions` : row.folder}">${label}</div>
+            <div class="gantt-bar-container" data-id="${row.id}" data-is-aggregate="${groupMode === 'ticket'}">
+              ${renderGanttBar(row, events, maxValue)}
             </div>
           </div>
         `;
@@ -632,10 +711,20 @@
       // Add click handlers
       document.querySelectorAll('.gantt-bar-container').forEach(bar => {
         bar.addEventListener('click', (e) => {
-          const sessionId = bar.dataset.id;
+          const id = bar.dataset.id;
+          const isAggregate = bar.dataset.isAggregate === 'true';
           const rect = bar.getBoundingClientRect();
           const clickX = (e.clientX - rect.left) / rect.width;
-          showSessionDetail(sessionId, clickX);
+
+          if (isAggregate && id !== '__unlinked__') {
+            // For aggregate view, show first session in the group
+            const aggregate = rowData.find(r => r.id === id);
+            if (aggregate?.sessions?.length > 0) {
+              showSessionDetail(aggregate.sessions[0].id, clickX);
+            }
+          } else if (!isAggregate) {
+            showSessionDetail(id, clickX);
+          }
         });
       });
     };
@@ -652,14 +741,24 @@
       let segments = [];
       let cumulativeValue = 0;
 
-      for (const event of events) {
-        const eventValue = axisMode === 'tokens'
-          ? event.tokenCount
-          : (new Date(event.timestamp).getTime() - new Date(session.startTime).getTime());
+      for (let i = 0; i < events.length; i++) {
+        const event = events[i];
+        let eventValue;
+
+        if (axisMode === 'tokens') {
+          eventValue = event.tokenCount;
+        } else {
+          // Time mode: use duration to next event, or to session end for last event
+          const eventTime = new Date(event.timestamp).getTime();
+          const nextTime = i + 1 < events.length
+            ? new Date(events[i + 1].timestamp).getTime()
+            : new Date(session.endTime).getTime();
+          eventValue = Math.max(0, nextTime - eventTime);
+        }
 
         if (eventValue > 0) {
           const startPercent = (cumulativeValue / totalValue) * widthPercent;
-          const segmentWidth = (event.tokenCount / totalValue) * widthPercent;
+          const segmentWidth = (eventValue / totalValue) * widthPercent;
 
           if (segmentWidth > 0.1) { // Only render visible segments
             segments.push({
@@ -670,7 +769,7 @@
             });
           }
         }
-        cumulativeValue += event.tokenCount;
+        cumulativeValue += eventValue;
       }
 
       // Render SVG
@@ -694,10 +793,12 @@
 
     const renderMarkers = (session, events, totalValue, widthPercent) => {
       let markers = '';
-      let cumulativeTokens = 0;
+      let cumulativeValue = 0;
+      const sessionStartTime = new Date(session.startTime).getTime();
 
-      for (const event of events) {
-        const position = (cumulativeTokens / totalValue) * widthPercent;
+      for (let i = 0; i < events.length; i++) {
+        const event = events[i];
+        const position = (cumulativeValue / totalValue) * widthPercent;
 
         if (event.type === 'git_op') {
           markers += `<div class="gantt-marker marker-git" style="left: ${position}%" title="Git operation"></div>`;
@@ -705,15 +806,35 @@
           markers += `<div class="gantt-marker marker-error" style="left: ${position}%" title="Error"></div>`;
         }
 
-        cumulativeTokens += event.tokenCount;
+        // Calculate event value based on axis mode
+        if (axisMode === 'tokens') {
+          cumulativeValue += event.tokenCount;
+        } else {
+          const eventTime = new Date(event.timestamp).getTime();
+          const nextTime = i + 1 < events.length
+            ? new Date(events[i + 1].timestamp).getTime()
+            : new Date(session.endTime).getTime();
+          cumulativeValue += Math.max(0, nextTime - eventTime);
+        }
       }
 
       // Add annotation markers
       if (session.annotations) {
         for (const ann of session.annotations) {
           if (ann.eventIndex !== undefined) {
-            const tokensBefore = events.slice(0, ann.eventIndex).reduce((sum, e) => sum + e.tokenCount, 0);
-            const position = (tokensBefore / totalValue) * widthPercent;
+            let valueBefore = 0;
+            for (let i = 0; i < ann.eventIndex && i < events.length; i++) {
+              if (axisMode === 'tokens') {
+                valueBefore += events[i].tokenCount;
+              } else {
+                const eventTime = new Date(events[i].timestamp).getTime();
+                const nextTime = i + 1 < events.length
+                  ? new Date(events[i + 1].timestamp).getTime()
+                  : new Date(session.endTime).getTime();
+                valueBefore += Math.max(0, nextTime - eventTime);
+              }
+            }
+            const position = (valueBefore / totalValue) * widthPercent;
             markers += `<div class="gantt-marker marker-annotation" style="left: ${position}%" title="${ann.type}: ${ann.summary}"></div>`;
           }
         }
@@ -725,8 +846,13 @@
     // Detail Panel
     const showSessionDetail = async (id, clickPosition = null) => {
       try {
-        const res = await fetch(`/api/sessions/${id}`);
-        const session = await res.json();
+        // Fetch session and git correlations in parallel
+        const [sessionRes, gitRes] = await Promise.all([
+          fetch(`/api/sessions/${id}`),
+          fetch(`/api/sessions/${id}/git-correlations`)
+        ]);
+        const session = await sessionRes.json();
+        const gitData = await gitRes.json().catch(() => ({ correlations: [] }));
 
         detailTitle.textContent = 'Session Details';
 
@@ -801,6 +927,26 @@
                   <span style="color: #888; float: right">${Math.round(a.confidence * 100)}%</span>
                 </div>
               `).join('')}
+            </div>
+          ` : ''}
+
+          ${gitData.correlations?.length > 0 ? `
+            <div class="detail-section">
+              <h3>Git Correlations</h3>
+              <div class="event-list">
+                ${gitData.correlations.map(c => `
+                  <div class="event-item">
+                    <span class="event-type event-git_op">${c.operation.type}</span>
+                    ${c.commit ? `
+                      <div style="margin-top: 4px;">
+                        <code style="color: #6ee7b7">${c.commit.shortHash}</code>
+                        ${c.commit.message.substring(0, 60)}${c.commit.message.length > 60 ? '...' : ''}
+                      </div>
+                      <span class="event-time">${formatDate(c.commit.timestamp)} by ${c.commit.author}</span>
+                    ` : '<span style="color: #888">No matching commit found</span>'}
+                  </div>
+                `).join('')}
+              </div>
             </div>
           ` : ''}
         `;
@@ -890,9 +1036,8 @@
       const analyzeBtn = document.getElementById('analyze-btn');
       if (analyzeBtn) {
         analyzeBtn.disabled = true;
-        analyzeBtn.textContent = 'Analyzing...';
+        analyzeBtn.textContent = 'Queuing...';
       }
-      statusEl.textContent = 'Analyzing session with AI...';
 
       try {
         const res = await fetch(`/api/sessions/${sessionId}/analyze`, { method: 'POST' });
@@ -902,11 +1047,36 @@
           throw new Error(data.error || 'Analysis failed');
         }
 
-        statusEl.textContent = data.message;
-        // Reload session detail to show annotations
-        showSessionDetail(sessionId);
-        // Refresh the session list to update analyzed status
-        await loadSessions();
+        // Poll for job completion
+        statusEl.textContent = 'Analysis queued, processing...';
+        if (analyzeBtn) analyzeBtn.textContent = 'Processing...';
+
+        const pollJob = async () => {
+          try {
+            const jobRes = await fetch(`/api/jobs/${data.jobId}`);
+            const job = await jobRes.json();
+
+            if (job.status === 'completed') {
+              statusEl.textContent = `Analysis complete! Found ${job.result?.annotationCount ?? 0} annotations.`;
+              showSessionDetail(sessionId);
+              await loadSessions();
+            } else if (job.status === 'failed') {
+              throw new Error(job.error || 'Analysis failed');
+            } else {
+              // Still processing, poll again
+              statusEl.textContent = `Analyzing... (${job.status})`;
+              setTimeout(pollJob, 2000);
+            }
+          } catch (pollErr) {
+            statusEl.textContent = `Analysis error: ${pollErr.message}`;
+            if (analyzeBtn) {
+              analyzeBtn.disabled = false;
+              analyzeBtn.textContent = 'Analyze with AI';
+            }
+          }
+        };
+
+        pollJob();
       } catch (err) {
         statusEl.textContent = `Analysis error: ${err.message}`;
         if (analyzeBtn) {
@@ -967,6 +1137,10 @@
     filterTicket.addEventListener('change', renderCurrentView);
     axisModeSelect.addEventListener('change', (e) => {
       axisMode = e.target.value;
+      if (currentView === 'gantt') renderGanttChart(applyFilters());
+    });
+    groupModeSelect.addEventListener('change', (e) => {
+      groupMode = e.target.value;
       if (currentView === 'gantt') renderGanttChart(applyFilters());
     });
 
