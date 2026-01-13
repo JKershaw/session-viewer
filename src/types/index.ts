@@ -82,12 +82,15 @@ export interface ParsedSession {
   [key: string]: unknown;
 }
 
-// Pagination types
+// Pagination and filter types
 export interface SessionQueryOptions {
   limit?: number;
   offset?: number;
   dateFrom?: string;
   dateTo?: string;
+  folder?: string;
+  branch?: string;
+  linearTicketId?: string;
 }
 
 export interface PaginatedResult<T> {

@@ -27,13 +27,12 @@ export interface AppRepositories {
 }
 
 export const createApp = (
-  repos: SessionRepository | AppRepositories,
+  repos: AppRepositories,
   config: AppConfig = {},
   jobQueue?: JobQueue
 ): Express => {
-  // Support both old and new API signatures
-  const sessionRepo = 'sessions' in repos ? repos.sessions : repos;
-  const ticketRepo = 'tickets' in repos ? repos.tickets : undefined;
+  const sessionRepo = repos.sessions;
+  const ticketRepo = repos.tickets;
   const app = express();
 
   app.use(express.json());
@@ -51,60 +50,50 @@ export const createApp = (
   // API Routes
   app.get('/api/sessions', async (req: Request, res: Response) => {
     try {
-      // Parse pagination query parameters
+      // Parse query parameters
       const limitParam = req.query.limit as string | undefined;
       const offsetParam = req.query.offset as string | undefined;
       const dateFrom = req.query.dateFrom as string | undefined;
       const dateTo = req.query.dateTo as string | undefined;
+      const folder = req.query.folder as string | undefined;
+      const branch = req.query.branch as string | undefined;
+      const ticket = req.query.ticket as string | undefined;
 
-      // Check if pagination is requested
-      const usePagination =
-        limitParam !== undefined || offsetParam !== undefined;
+      // Parse pagination with defaults
+      const limit = Math.min(
+        Math.max(1, parseInt(limitParam ?? '100', 10) || 100),
+        100
+      );
+      const offset = Math.max(0, parseInt(offsetParam ?? '0', 10) || 0);
 
-      if (usePagination) {
-        // Use paginated endpoint
-        const limit = Math.min(
-          Math.max(1, parseInt(limitParam ?? '50', 10) || 50),
-          100
-        );
-        const offset = Math.max(0, parseInt(offsetParam ?? '0', 10) || 0);
+      const result = await sessionRepo.getSessions({
+        limit,
+        offset,
+        dateFrom: dateFrom && isValidISODate(dateFrom) ? dateFrom : undefined,
+        dateTo: dateTo && isValidISODate(dateTo) ? dateTo : undefined,
+        folder: folder || undefined,
+        branch: branch || undefined,
+        linearTicketId: ticket || undefined
+      });
 
-        const result = await sessionRepo.getSessions({
-          limit,
-          offset,
-          dateFrom:
-            dateFrom && isValidISODate(dateFrom) ? dateFrom : undefined,
-          dateTo: dateTo && isValidISODate(dateTo) ? dateTo : undefined
-        });
-
-        // Transform sessions to summaries
-        const summaries = result.data.map(
-          ({ events, annotations, ...rest }) => ({
-            ...rest,
-            eventCount: events?.length ?? 0,
-            annotationCount: annotations?.length ?? 0
-          })
-        );
-
-        res.json({
-          data: summaries,
-          total: result.total,
-          limit: result.limit,
-          offset: result.offset,
-          hasMore: result.offset + result.data.length < result.total,
-          page: Math.floor(result.offset / result.limit) + 1,
-          totalPages: Math.ceil(result.total / result.limit)
-        });
-      } else {
-        // Legacy: return all sessions as array (for backward compatibility)
-        const sessions = await sessionRepo.getAllSessions();
-        const summaries = sessions.map(({ events, annotations, ...rest }) => ({
+      // Transform sessions to summaries
+      const summaries = result.data.map(
+        ({ events, annotations, ...rest }) => ({
           ...rest,
           eventCount: events?.length ?? 0,
           annotationCount: annotations?.length ?? 0
-        }));
-        res.json(summaries);
-      }
+        })
+      );
+
+      res.json({
+        data: summaries,
+        total: result.total,
+        limit: result.limit,
+        offset: result.offset,
+        hasMore: result.offset + result.data.length < result.total,
+        page: Math.floor(result.offset / result.limit) + 1,
+        totalPages: Math.ceil(result.total / result.limit)
+      });
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch sessions' });
     }

@@ -43,7 +43,7 @@ export const createSessionRepository = async (
   const getSessions = async (
     options: SessionQueryOptions
   ): Promise<PaginatedResult<Session>> => {
-    const { limit = 50, offset = 0, dateFrom, dateTo } = options;
+    const { limit = 50, offset = 0, dateFrom, dateTo, folder, branch, linearTicketId } = options;
 
     // Get all sessions and filter in memory
     // (MangoDB doesn't support complex queries, so we filter after fetching)
@@ -60,6 +60,27 @@ export const createSessionRepository = async (
       const toDate = new Date(dateTo);
       allSessions = allSessions.filter(
         (s: Session) => new Date(s.startTime) <= toDate
+      );
+    }
+
+    // Filter by folder (partial match)
+    if (folder) {
+      allSessions = allSessions.filter(
+        (s: Session) => s.folder && s.folder.includes(folder)
+      );
+    }
+
+    // Filter by branch (exact match)
+    if (branch) {
+      allSessions = allSessions.filter(
+        (s: Session) => s.branch === branch
+      );
+    }
+
+    // Filter by Linear ticket ID (exact match)
+    if (linearTicketId) {
+      allSessions = allSessions.filter(
+        (s: Session) => s.linearTicketId === linearTicketId
       );
     }
 

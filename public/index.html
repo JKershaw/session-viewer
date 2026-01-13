@@ -443,10 +443,14 @@
     let currentView = 'list';
     let axisMode = 'tokens';
     let groupMode = 'session';
-    let visibleSessionCount = 100;
     const SESSIONS_PER_PAGE = 100;
     const MAX_CACHE_SIZE = 50;
     let sessionDetailCache = new Map(); // Cache for full session details (LRU-like)
+
+    // Pagination state
+    let currentOffset = 0;
+    let totalSessions = 0;
+    let hasMoreSessions = false;
 
     // DOM Elements
     const listView = document.getElementById('list-view');
@@ -541,25 +545,6 @@
       planning_mode: '#1abc9c'
     };
 
-    // Filter logic
-    const applyFilters = () => {
-      const dateFrom = filterDateFrom.value ? new Date(filterDateFrom.value) : null;
-      const dateTo = filterDateTo.value ? new Date(filterDateTo.value + 'T23:59:59') : null;
-      const folder = filterFolder.value;
-      const branch = filterBranch.value;
-      const ticket = filterTicket.value;
-
-      return allSessions.filter(s => {
-        const sessionDate = new Date(s.startTime);
-        if (dateFrom && sessionDate < dateFrom) return false;
-        if (dateTo && sessionDate > dateTo) return false;
-        if (folder && !s.folder.includes(folder)) return false;
-        if (branch && s.branch !== branch) return false;
-        if (ticket && s.linearTicketId !== ticket) return false;
-        return true;
-      });
-    };
-
     const updateFilterOptions = () => {
       const folders = [...new Set(allSessions.map(s => s.folder).filter(Boolean))];
       const branches = [...new Set(allSessions.map(s => s.branch).filter(Boolean))];
@@ -590,17 +575,17 @@
     };
 
     const renderCurrentView = () => {
-      const filtered = applyFilters();
+      // Sessions are already filtered by server
       if (currentView === 'list') {
-        renderSessionList(filtered);
+        renderSessionList(allSessions);
       } else {
-        renderGanttChart(filtered);
+        renderGanttChart(allSessions);
       }
     };
 
     // Session List View
     const renderSessionList = (sessions) => {
-      if (sessions.length === 0) {
+      if (sessions.length === 0 && totalSessions === 0) {
         listView.innerHTML = `
           <div class="empty-state">
             <p>No sessions found.</p>
@@ -611,14 +596,8 @@
         return;
       }
 
-      sessions.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
-
-      // Pagination: slice sessions to show only visibleSessionCount
-      const totalCount = sessions.length;
-      const visibleSessions = sessions.slice(0, visibleSessionCount);
-      const hasMore = totalCount > visibleSessionCount;
-
-      let html = visibleSessions.map(s => `
+      // Sessions are already sorted by server (most recent first)
+      let html = sessions.map(s => `
         <div class="session-card" data-id="${escapeHtml(s.id)}">
           <div>
             <div class="session-id">${escapeHtml(s.id.substring(0, 8))}...</div>
@@ -635,23 +614,23 @@
         </div>
       `).join('');
 
-      // Add "Load More" button if there are more sessions
-      if (hasMore) {
-        const remaining = totalCount - visibleSessionCount;
+      // Add "Load More" button if there are more sessions on server
+      if (hasMoreSessions) {
+        const remaining = totalSessions - sessions.length;
         html += `
           <div style="text-align: center; padding: 20px; margin-top: 8px;">
             <button id="load-more-btn" class="secondary" style="padding: 12px 24px;">
               Load More Sessions
             </button>
             <div style="font-size: 0.75rem; color: #888; margin-top: 8px;">
-              Showing ${visibleSessionCount} of ${totalCount} sessions (${remaining} more)
+              Showing ${sessions.length} of ${totalSessions} sessions (${remaining} more)
             </div>
           </div>
         `;
-      } else if (totalCount > SESSIONS_PER_PAGE) {
+      } else if (totalSessions > SESSIONS_PER_PAGE) {
         html += `
           <div style="text-align: center; padding: 12px; font-size: 0.75rem; color: #888;">
-            Showing all ${totalCount} sessions
+            Showing all ${totalSessions} sessions
           </div>
         `;
       }
@@ -662,12 +641,11 @@
         card.addEventListener('click', () => showSessionDetail(card.dataset.id));
       });
 
-      // Attach Load More handler
+      // Attach Load More handler - fetches next page from server
       const loadMoreBtn = document.getElementById('load-more-btn');
       if (loadMoreBtn) {
         loadMoreBtn.addEventListener('click', () => {
-          visibleSessionCount += SESSIONS_PER_PAGE;
-          renderCurrentView();
+          loadSessions(true); // append = true
         });
       }
     };
@@ -1136,13 +1114,39 @@
       return session;
     };
 
+    // Build API URL with current filter params
+    const buildSessionsUrl = (offset = 0) => {
+      const params = new URLSearchParams();
+      params.set('limit', SESSIONS_PER_PAGE.toString());
+      params.set('offset', offset.toString());
+
+      if (filterDateFrom.value) params.set('dateFrom', filterDateFrom.value);
+      if (filterDateTo.value) params.set('dateTo', filterDateTo.value);
+      if (filterFolder.value) params.set('folder', filterFolder.value);
+      if (filterBranch.value) params.set('branch', filterBranch.value);
+      if (filterTicket.value) params.set('ticket', filterTicket.value);
+
+      return `/api/sessions?${params.toString()}`;
+    };
+
     // API calls
-    const loadSessions = async () => {
+    const loadSessions = async (append = false) => {
       try {
-        const res = await fetch('/api/sessions');
-        allSessions = await res.json();
-        visibleSessionCount = SESSIONS_PER_PAGE; // Reset pagination on fresh load
-        statusEl.textContent = `${allSessions.length} session(s) loaded`;
+        const offset = append ? currentOffset + SESSIONS_PER_PAGE : 0;
+        const res = await fetch(buildSessionsUrl(offset));
+        const result = await res.json();
+
+        if (append) {
+          allSessions = [...allSessions, ...result.data];
+        } else {
+          allSessions = result.data;
+        }
+
+        currentOffset = result.offset;
+        totalSessions = result.total;
+        hasMoreSessions = result.hasMore;
+
+        statusEl.textContent = `Showing ${allSessions.length} of ${totalSessions} session(s)`;
         updateFilterOptions();
         renderCurrentView();
       } catch (err) {
@@ -1278,14 +1282,12 @@
       filterFolder.value = '';
       filterBranch.value = '';
       filterTicket.value = '';
-      visibleSessionCount = SESSIONS_PER_PAGE;
-      renderCurrentView();
+      loadSessions(); // Reload from server with no filters
     });
 
-    // Reset pagination on filter change
+    // Reload from server on filter change
     const handleFilterChange = () => {
-      visibleSessionCount = SESSIONS_PER_PAGE;
-      renderCurrentView();
+      loadSessions(); // Fetch fresh data with new filters
     };
 
     filterDateFrom.addEventListener('change', handleFilterChange);
@@ -1295,11 +1297,11 @@
     filterTicket.addEventListener('change', handleFilterChange);
     axisModeSelect.addEventListener('change', (e) => {
       axisMode = e.target.value;
-      if (currentView === 'gantt') renderGanttChart(applyFilters());
+      if (currentView === 'gantt') renderGanttChart(allSessions);
     });
     groupModeSelect.addEventListener('change', (e) => {
       groupMode = e.target.value;
-      if (currentView === 'gantt') renderGanttChart(applyFilters());
+      if (currentView === 'gantt') renderGanttChart(allSessions);
     });
 
     // Initial load
