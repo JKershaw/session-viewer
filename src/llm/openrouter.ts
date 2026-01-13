@@ -77,92 +77,237 @@ export const createOpenRouterClient = (config: OpenRouterConfig) => {
 };
 
 /**
- * Summarizes events for the analysis prompt
+ * Extracts meaningful content from a raw log entry based on event type
  */
-export const summarizeEvents = (events: Event[]): string => {
-  const eventSummaries = events.map((e, i) => {
-    const tokenStr = e.tokenCount > 0 ? ` (${e.tokenCount} tokens)` : '';
-    const timestamp = e.timestamp ? new Date(e.timestamp).toISOString() : 'unknown time';
+const extractEventDetail = (event: Event): string => {
+  const raw = event.raw as Record<string, unknown>;
+  const message = raw.message as Record<string, unknown> | undefined;
+  const content = message?.content;
 
-    let detail = '';
-    if (e.type === 'git_op') {
-      const raw = e.raw as Record<string, unknown>;
-      const input = raw.input as Record<string, unknown> | undefined;
-      const cmd = input?.command ?? raw.content ?? '';
-      detail = `: ${String(cmd).substring(0, 100)}`;
-    } else if (e.type === 'error') {
-      const raw = e.raw as Record<string, unknown>;
-      const error = raw.error as Record<string, unknown> | undefined;
-      const msg = error?.message ?? e.raw.message?.content ?? 'unknown error';
-      detail = `: ${String(msg).substring(0, 100)}`;
+  switch (event.type) {
+    case 'user_message': {
+      // Extract user's actual message
+      if (typeof content === 'string') {
+        return `USER: "${content.substring(0, 200)}${content.length > 200 ? '...' : ''}"`;
+      }
+      if (Array.isArray(content)) {
+        const textPart = content.find((c: unknown) =>
+          typeof c === 'object' && c !== null && (c as Record<string, unknown>).type === 'text'
+        ) as Record<string, unknown> | undefined;
+        if (textPart?.text) {
+          const text = String(textPart.text);
+          return `USER: "${text.substring(0, 200)}${text.length > 200 ? '...' : ''}"`;
+        }
+        // Tool result
+        const toolResult = content.find((c: unknown) =>
+          typeof c === 'object' && c !== null && (c as Record<string, unknown>).type === 'tool_result'
+        ) as Record<string, unknown> | undefined;
+        if (toolResult) {
+          return `TOOL_RESULT`;
+        }
+      }
+      return 'USER: [message]';
     }
 
-    return `${i + 1}. [${timestamp}] ${e.type}${tokenStr}${detail}`;
-  });
+    case 'assistant_message': {
+      // Skip thinking blocks, extract text or tool use
+      if (Array.isArray(content)) {
+        const toolUse = content.find((c: unknown) =>
+          typeof c === 'object' && c !== null && (c as Record<string, unknown>).type === 'tool_use'
+        ) as Record<string, unknown> | undefined;
+        if (toolUse) {
+          const toolName = toolUse.name ?? 'unknown';
+          const input = toolUse.input as Record<string, unknown> | undefined;
+          return formatToolCall(String(toolName), input);
+        }
+        const textPart = content.find((c: unknown) =>
+          typeof c === 'object' && c !== null && (c as Record<string, unknown>).type === 'text'
+        ) as Record<string, unknown> | undefined;
+        if (textPart?.text) {
+          const text = String(textPart.text);
+          // Only include if it's short or contains key words
+          if (text.length < 100 || /error|instead|chang|revert|fix|bug|issue/i.test(text)) {
+            return `ASSISTANT: "${text.substring(0, 150)}${text.length > 150 ? '...' : ''}"`;
+          }
+        }
+      }
+      return 'ASSISTANT: [response]';
+    }
 
-  // Limit to significant events if too many
-  if (eventSummaries.length > 100) {
-    const significant = events
-      .map((e, i) => ({ e, i }))
-      .filter(
-        ({ e }) =>
-          e.type === 'git_op' ||
-          e.type === 'error' ||
-          e.type === 'user_message' ||
-          e.tokenCount > 1000
-      )
-      .map(({ e, i }) => {
-        const tokenStr = e.tokenCount > 0 ? ` (${e.tokenCount} tokens)` : '';
-        const timestamp = e.timestamp ? new Date(e.timestamp).toISOString() : 'unknown';
-        return `${i + 1}. [${timestamp}] ${e.type}${tokenStr}`;
+    case 'tool_call': {
+      // Extract tool name and key input
+      if (Array.isArray(content)) {
+        const toolUse = content.find((c: unknown) =>
+          typeof c === 'object' && c !== null && (c as Record<string, unknown>).type === 'tool_use'
+        ) as Record<string, unknown> | undefined;
+        if (toolUse) {
+          const toolName = toolUse.name ?? 'unknown';
+          const input = toolUse.input as Record<string, unknown> | undefined;
+          return formatToolCall(String(toolName), input);
+        }
+      }
+      return 'TOOL: [call]';
+    }
+
+    case 'git_op': {
+      const input = raw.input as Record<string, unknown> | undefined;
+      const cmd = input?.command ?? raw.content ?? '';
+      return `GIT: ${String(cmd).substring(0, 120)}`;
+    }
+
+    case 'error': {
+      const error = raw.error as Record<string, unknown> | undefined;
+      const errorMsg = error?.message ?? message?.content ?? 'unknown error';
+      return `ERROR: ${String(errorMsg).substring(0, 150)}`;
+    }
+
+    case 'planning_mode': {
+      return 'PLANNING: [thinking]';
+    }
+
+    default:
+      return event.type;
+  }
+};
+
+/**
+ * Formats a tool call with its key input parameters
+ */
+const formatToolCall = (toolName: string, input: Record<string, unknown> | undefined): string => {
+  if (!input) return `TOOL ${toolName}`;
+
+  switch (toolName) {
+    case 'Read':
+      return `TOOL Read: ${input.file_path ?? 'unknown'}`;
+    case 'Write':
+      return `TOOL Write: ${input.file_path ?? 'unknown'}`;
+    case 'Edit':
+      return `TOOL Edit: ${input.file_path ?? 'unknown'}`;
+    case 'Bash': {
+      const cmd = String(input.command ?? '').substring(0, 100);
+      return `TOOL Bash: ${cmd}`;
+    }
+    case 'Grep':
+      return `TOOL Grep: "${input.pattern}" in ${input.path ?? '.'}`;
+    case 'Glob':
+      return `TOOL Glob: ${input.pattern}`;
+    case 'Task':
+      return `TOOL Task: ${input.description ?? input.prompt?.toString().substring(0, 50) ?? 'subagent'}`;
+    case 'TodoWrite':
+      return `TOOL TodoWrite: updating task list`;
+    case 'WebFetch':
+      return `TOOL WebFetch: ${input.url}`;
+    case 'WebSearch':
+      return `TOOL WebSearch: "${input.query}"`;
+    default:
+      return `TOOL ${toolName}`;
+  }
+};
+
+/**
+ * Formats relative time from session start
+ */
+const formatRelativeTime = (eventTime: string, sessionStart: string): string => {
+  const start = new Date(sessionStart).getTime();
+  const event = new Date(eventTime).getTime();
+  const diffMs = event - start;
+  const mins = Math.floor(diffMs / 60000);
+  const secs = Math.floor((diffMs % 60000) / 1000);
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
+/**
+ * Summarizes events for the analysis prompt with rich context
+ */
+export const summarizeEvents = (events: Event[], sessionStart?: string): string => {
+  const start = sessionStart ?? events[0]?.timestamp ?? '';
+
+  // For very long sessions, be selective
+  const maxEvents = 300;
+  let selectedEvents: Array<{ event: Event; index: number }>;
+
+  if (events.length > maxEvents) {
+    // Always include: user messages, errors, git ops
+    // Sample: tool calls (every 3rd), skip most assistant messages
+    selectedEvents = events
+      .map((event, index) => ({ event, index }))
+      .filter(({ event }, idx) => {
+        if (event.type === 'user_message') return true;
+        if (event.type === 'error') return true;
+        if (event.type === 'git_op') return true;
+        if (event.type === 'tool_call') return idx % 3 === 0;
+        if (event.type === 'assistant_message') return idx % 5 === 0;
+        return false;
       });
-
-    return `Session has ${events.length} events. Significant events:\n${significant.join('\n')}`;
+  } else {
+    selectedEvents = events.map((event, index) => ({ event, index }));
   }
 
-  return eventSummaries.join('\n');
+  const lines = selectedEvents.map(({ event, index }) => {
+    const time = event.timestamp ? formatRelativeTime(event.timestamp, start) : '??:??';
+    const detail = extractEventDetail(event);
+    return `[${time}] #${index + 1} ${detail}`;
+  });
+
+  if (events.length > maxEvents) {
+    return `Session has ${events.length} events (showing ${selectedEvents.length} key events):\n\n${lines.join('\n')}`;
+  }
+
+  return lines.join('\n');
 };
 
 /**
  * Builds the analysis prompt for a session
  */
 export const buildAnalysisPrompt = (session: Session): ChatMessage[] => {
-  const eventSummary = summarizeEvents(session.events);
+  const eventSummary = summarizeEvents(session.events, session.startTime);
 
-  const systemPrompt = `You are an expert at analyzing Claude Code session logs to identify patterns of friction, blockers, and decision points.
+  const systemPrompt = `You are an expert at analyzing Claude Code session logs to identify friction patterns. Analyze the timeline and identify:
 
-Your task is to analyze a session and identify:
-1. **Decisions**: Key moments where a significant choice was made (e.g., architectural decisions, changing approach)
-2. **Blockers**: Extended periods where progress stalled on a single problem (repeated attempts, errors, debugging)
-3. **Rework**: Instances of revisiting completed work (undoing changes, reverting, re-implementing)
-4. **Goal Shifts**: Changes in the overall objective during the session
+**BLOCKERS** - Progress stalled on a problem:
+- Same error appearing multiple times
+- Repeated edits to the same file without success
+- Multiple failed test runs
+- User expressing frustration or asking to try different approach
+Example: "Blocker at #15-28: 5 attempts to fix 'Cannot find module' error in app.ts, resolved by adding missing export"
 
-For each annotation, provide:
-- type: decision | blocker | rework | goal_shift
-- eventIndex: the event number where this occurred
-- summary: 1-2 sentence description
-- confidence: 0.0-1.0 indicating certainty
+**DECISIONS** - Significant technical choices:
+- Choosing between alternatives (e.g., "use X instead of Y")
+- Architectural decisions
+- Changing implementation approach
+Example: "Decision at #42: Switched from REST to GraphQL API based on user request"
 
-Respond with a JSON array of annotations. Example:
-[
-  {"type": "blocker", "eventIndex": 15, "summary": "Extended debugging of authentication error across 10 events", "confidence": 0.85},
-  {"type": "decision", "eventIndex": 42, "summary": "Chose to use SQLite instead of PostgreSQL for simplicity", "confidence": 0.9}
-]
+**REWORK** - Revisiting completed work:
+- Reverting changes (git revert, undoing edits)
+- Re-implementing something that was done earlier
+- User saying "actually, let's go back to..."
+Example: "Rework at #85: Reverted authentication changes and re-implemented with JWT instead of sessions"
 
-If no significant patterns are found, return an empty array: []`;
+**GOAL_SHIFT** - Objective changed mid-session:
+- User changing what they want
+- Pivoting to a different task
+- Abandoning current work for something else
+Example: "Goal shift at #120: Abandoned API refactor to fix urgent production bug"
+
+For each annotation provide:
+- type: blocker | decision | rework | goal_shift
+- eventIndex: the # number where this started
+- summary: Specific description citing the actual content (file names, error messages, user requests)
+- confidence: 0.0-1.0
+
+Return ONLY a JSON array. Be selective - only flag genuine friction points, not normal development flow.`;
 
   const userPrompt = `Analyze this Claude Code session:
 
-Session ID: ${session.id}
-Duration: ${Math.round(session.durationMs / 60000)} minutes
-Total Tokens: ${session.totalTokens}
-Folder: ${session.folder}
+Project: ${session.folder}
 Branch: ${session.branch || 'N/A'}
+Duration: ${Math.round(session.durationMs / 60000)} minutes
+Total Events: ${session.events.length}
 
-Events:
+Timeline:
 ${eventSummary}
 
-Identify decisions, blockers, rework, and goal shifts. Return JSON array only.`;
+Identify blockers, decisions, rework, and goal shifts. Return JSON array only.`;
 
   return [
     { role: 'system', content: systemPrompt },

@@ -9,27 +9,28 @@ import type { Event, Session } from '../types/index.js';
 
 describe('OpenRouter LLM Client', () => {
   describe('summarizeEvents', () => {
-    it('summarizes a list of events', () => {
+    it('summarizes a list of events with rich context', () => {
       const events: Event[] = [
         {
           type: 'user_message',
           timestamp: '2024-01-15T10:00:00Z',
           tokenCount: 100,
-          raw: { type: 'message' }
+          raw: { type: 'user', message: { role: 'user', content: 'Fix the bug in app.ts' } }
         },
         {
           type: 'assistant_message',
           timestamp: '2024-01-15T10:01:00Z',
           tokenCount: 500,
-          raw: { type: 'message' }
+          raw: { type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'I will fix it' }] } }
         }
       ];
 
       const summary = summarizeEvents(events);
-      assert.ok(summary.includes('user_message'));
-      assert.ok(summary.includes('assistant_message'));
-      assert.ok(summary.includes('100 tokens'));
-      assert.ok(summary.includes('500 tokens'));
+      // New format: [MM:SS] #N TYPE: detail
+      assert.ok(summary.includes('USER:'));
+      assert.ok(summary.includes('Fix the bug'));
+      assert.ok(summary.includes('#1'));
+      assert.ok(summary.includes('#2'));
     });
 
     it('handles git operations with command detail', () => {
@@ -43,7 +44,7 @@ describe('OpenRouter LLM Client', () => {
       ];
 
       const summary = summarizeEvents(events);
-      assert.ok(summary.includes('git_op'));
+      assert.ok(summary.includes('GIT:'));
       assert.ok(summary.includes('git commit'));
     });
 
@@ -58,7 +59,7 @@ describe('OpenRouter LLM Client', () => {
       ];
 
       const summary = summarizeEvents(events);
-      assert.ok(summary.includes('error'));
+      assert.ok(summary.includes('ERROR:'));
       assert.ok(summary.includes('File not found'));
     });
 
@@ -94,10 +95,10 @@ describe('OpenRouter LLM Client', () => {
       assert.strictEqual(messages[1].role, 'user');
 
       // Check user prompt contains session details
-      assert.ok(messages[1].content.includes('test-session-123'));
+      assert.ok(messages[1].content.includes('/home/user/project')); // folder
       assert.ok(messages[1].content.includes('60 minutes'));
-      assert.ok(messages[1].content.includes('50000'));
-      assert.ok(messages[1].content.includes('feature/test'));
+      assert.ok(messages[1].content.includes('feature/test')); // branch
+      assert.ok(messages[1].content.includes('Timeline:')); // new format
     });
   });
 
