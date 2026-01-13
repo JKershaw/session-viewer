@@ -1,3 +1,6 @@
+# MangoDB data directory
+data/
+
 # Logs
 logs
 *.log
