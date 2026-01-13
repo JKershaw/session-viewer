@@ -18,7 +18,7 @@
       padding: 20px;
     }
     .container {
-      max-width: 1200px;
+      max-width: 1400px;
       margin: 0 auto;
     }
     header {
@@ -36,6 +36,7 @@
     .controls {
       display: flex;
       gap: 12px;
+      align-items: center;
     }
     button {
       background: #4a4ae8;
@@ -54,11 +55,58 @@
       background: #555;
       cursor: not-allowed;
     }
+    button.secondary {
+      background: #333;
+    }
+    button.secondary:hover {
+      background: #444;
+    }
+    button.secondary.active {
+      background: #4a4ae8;
+    }
+    .view-toggle {
+      display: flex;
+      gap: 4px;
+      background: #252540;
+      padding: 4px;
+      border-radius: 8px;
+    }
+    .view-toggle button {
+      padding: 6px 12px;
+      font-size: 0.75rem;
+    }
     .status {
       font-size: 0.875rem;
       color: #888;
       margin-bottom: 16px;
     }
+
+    /* Filters */
+    .filters {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .filter-group label {
+      font-size: 0.75rem;
+      color: #888;
+    }
+    .filter-group input, .filter-group select {
+      background: #252540;
+      border: 1px solid #333;
+      color: #eee;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 0.875rem;
+    }
+
+    /* Session List */
     .session-list {
       display: flex;
       flex-direction: column;
@@ -121,11 +169,103 @@
       padding: 60px 20px;
       color: #888;
     }
+
+    /* Gantt Chart */
+    .gantt-container {
+      background: #252540;
+      border-radius: 8px;
+      padding: 20px;
+      overflow-x: auto;
+    }
+    .gantt-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .gantt-legend {
+      display: flex;
+      gap: 16px;
+      font-size: 0.75rem;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+    }
+    .gantt-chart {
+      min-width: 100%;
+    }
+    .gantt-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      min-height: 40px;
+    }
+    .gantt-label {
+      width: 200px;
+      min-width: 200px;
+      padding-right: 16px;
+      font-size: 0.75rem;
+      color: #aaa;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .gantt-bar-container {
+      flex: 1;
+      height: 32px;
+      background: #1a1a2e;
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .gantt-axis {
+      display: flex;
+      margin-left: 200px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 4px;
+    }
+    .axis-label {
+      font-size: 0.625rem;
+      color: #666;
+      position: absolute;
+      transform: translateX(-50%);
+    }
+
+    /* Event colors */
+    .event-user_message { fill: #4a90d9; background: #4a90d9; }
+    .event-assistant_message { fill: #9b59b6; background: #9b59b6; }
+    .event-tool_call { fill: #f39c12; background: #f39c12; }
+    .event-git_op { fill: #2ecc71; background: #2ecc71; }
+    .event-error { fill: #e74c3c; background: #e74c3c; }
+    .event-planning_mode { fill: #1abc9c; background: #1abc9c; }
+
+    /* Markers */
+    .gantt-marker {
+      position: absolute;
+      width: 3px;
+      height: 100%;
+      top: 0;
+      z-index: 10;
+    }
+    .marker-git { background: #2ecc71; }
+    .marker-error { background: #e74c3c; }
+    .marker-annotation { background: #f1c40f; }
+
+    /* Detail Panel */
     .detail-panel {
       position: fixed;
       top: 0;
       right: 0;
-      width: 400px;
+      width: 450px;
       height: 100vh;
       background: #252540;
       border-left: 1px solid #333;
@@ -133,6 +273,7 @@
       overflow-y: auto;
       transform: translateX(100%);
       transition: transform 0.3s;
+      z-index: 100;
     }
     .detail-panel.open {
       transform: translateX(0);
@@ -161,6 +302,47 @@
       font-size: 0.875rem;
       word-break: break-all;
     }
+    .detail-section {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid #333;
+    }
+    .detail-section h3 {
+      font-size: 0.875rem;
+      margin-bottom: 12px;
+      color: #aaa;
+    }
+    .event-list {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .event-item {
+      padding: 8px;
+      background: #1a1a2e;
+      border-radius: 4px;
+      margin-bottom: 6px;
+      font-size: 0.75rem;
+    }
+    .event-type {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.625rem;
+      margin-right: 8px;
+      text-transform: uppercase;
+    }
+    .event-tokens {
+      color: #6ee7b7;
+      float: right;
+    }
+    .event-time {
+      color: #888;
+      display: block;
+      margin-top: 4px;
+    }
+    .hidden {
+      display: none !important;
+    }
   </style>
 </head>
 <body>
@@ -168,32 +350,110 @@
     <header>
       <h1>Claude Code Session Analyzer</h1>
       <div class="controls">
+        <div class="view-toggle">
+          <button id="view-list" class="secondary active">List</button>
+          <button id="view-gantt" class="secondary">Gantt</button>
+        </div>
         <button id="refresh-btn">Refresh Logs</button>
+        <button id="sync-linear-btn" class="secondary">Sync Linear</button>
       </div>
     </header>
 
+    <div class="filters" id="filters">
+      <div class="filter-group">
+        <label>Date From</label>
+        <input type="date" id="filter-date-from">
+      </div>
+      <div class="filter-group">
+        <label>Date To</label>
+        <input type="date" id="filter-date-to">
+      </div>
+      <div class="filter-group">
+        <label>Folder</label>
+        <select id="filter-folder">
+          <option value="">All Folders</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Branch</label>
+        <select id="filter-branch">
+          <option value="">All Branches</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Axis</label>
+        <select id="axis-mode">
+          <option value="tokens">Tokens</option>
+          <option value="time">Time</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Ticket</label>
+        <select id="filter-ticket">
+          <option value="">All Tickets</option>
+        </select>
+      </div>
+    </div>
+
     <div id="status" class="status"></div>
-    <div id="session-list" class="session-list">
+
+    <!-- List View -->
+    <div id="list-view" class="session-list">
       <div class="loading">Loading sessions...</div>
+    </div>
+
+    <!-- Gantt View -->
+    <div id="gantt-view" class="gantt-container hidden">
+      <div class="gantt-header">
+        <div class="gantt-legend">
+          <div class="legend-item"><span class="legend-color event-user_message"></span> User</div>
+          <div class="legend-item"><span class="legend-color event-assistant_message"></span> Assistant</div>
+          <div class="legend-item"><span class="legend-color event-tool_call"></span> Tool</div>
+          <div class="legend-item"><span class="legend-color event-git_op"></span> Git</div>
+          <div class="legend-item"><span class="legend-color event-error"></span> Error</div>
+          <div class="legend-item"><span class="legend-color event-planning_mode"></span> Planning</div>
+        </div>
+      </div>
+      <div id="gantt-chart" class="gantt-chart"></div>
     </div>
   </div>
 
   <div id="detail-panel" class="detail-panel">
     <h2>
-      Session Details
+      <span id="detail-title">Session Details</span>
       <button class="close" id="close-detail">×</button>
     </h2>
     <div id="detail-content"></div>
   </div>
 
   <script>
-    const sessionList = document.getElementById('session-list');
+    // State
+    let allSessions = [];
+    let allTickets = [];
+    let currentView = 'list';
+    let axisMode = 'tokens';
+
+    // DOM Elements
+    const listView = document.getElementById('list-view');
+    const ganttView = document.getElementById('gantt-view');
+    const ganttChart = document.getElementById('gantt-chart');
     const statusEl = document.getElementById('status');
     const refreshBtn = document.getElementById('refresh-btn');
+    const syncLinearBtn = document.getElementById('sync-linear-btn');
     const detailPanel = document.getElementById('detail-panel');
     const detailContent = document.getElementById('detail-content');
+    const detailTitle = document.getElementById('detail-title');
     const closeDetail = document.getElementById('close-detail');
+    const viewListBtn = document.getElementById('view-list');
+    const viewGanttBtn = document.getElementById('view-gantt');
+    const filterDateFrom = document.getElementById('filter-date-from');
+    const filterDateTo = document.getElementById('filter-date-to');
+    const filterFolder = document.getElementById('filter-folder');
+    const filterBranch = document.getElementById('filter-branch');
+    const filterTicket = document.getElementById('filter-ticket');
+    const axisModeSelect = document.getElementById('axis-mode');
 
+    // Formatters
     const formatDate = (iso) => {
       const d = new Date(iso);
       return d.toLocaleString();
@@ -212,9 +472,82 @@
       return n.toString();
     };
 
-    const renderSessions = (sessions) => {
+    const formatShortDate = (iso) => {
+      const d = new Date(iso);
+      return d.toLocaleDateString();
+    };
+
+    // Event type colors
+    const eventColors = {
+      user_message: '#4a90d9',
+      assistant_message: '#9b59b6',
+      tool_call: '#f39c12',
+      git_op: '#2ecc71',
+      error: '#e74c3c',
+      planning_mode: '#1abc9c'
+    };
+
+    // Filter logic
+    const applyFilters = () => {
+      const dateFrom = filterDateFrom.value ? new Date(filterDateFrom.value) : null;
+      const dateTo = filterDateTo.value ? new Date(filterDateTo.value + 'T23:59:59') : null;
+      const folder = filterFolder.value;
+      const branch = filterBranch.value;
+      const ticket = filterTicket.value;
+
+      return allSessions.filter(s => {
+        const sessionDate = new Date(s.startTime);
+        if (dateFrom && sessionDate < dateFrom) return false;
+        if (dateTo && sessionDate > dateTo) return false;
+        if (folder && !s.folder.includes(folder)) return false;
+        if (branch && s.branch !== branch) return false;
+        if (ticket && s.linearTicketId !== ticket) return false;
+        return true;
+      });
+    };
+
+    const updateFilterOptions = () => {
+      const folders = [...new Set(allSessions.map(s => s.folder).filter(Boolean))];
+      const branches = [...new Set(allSessions.map(s => s.branch).filter(Boolean))];
+      const ticketIds = [...new Set(allSessions.map(s => s.linearTicketId).filter(Boolean))];
+
+      filterFolder.innerHTML = '<option value="">All Folders</option>' +
+        folders.map(f => `<option value="${f}">${f.split('/').pop()}</option>`).join('');
+
+      filterBranch.innerHTML = '<option value="">All Branches</option>' +
+        branches.map(b => `<option value="${b}">${b}</option>`).join('');
+
+      filterTicket.innerHTML = '<option value="">All Tickets</option>' +
+        ticketIds.map(t => {
+          const ticket = allTickets.find(tk => tk.ticketId === t);
+          const label = ticket ? `${t}: ${ticket.title.substring(0, 30)}` : t;
+          return `<option value="${t}">${label}</option>`;
+        }).join('');
+    };
+
+    // View rendering
+    const switchView = (view) => {
+      currentView = view;
+      viewListBtn.classList.toggle('active', view === 'list');
+      viewGanttBtn.classList.toggle('active', view === 'gantt');
+      listView.classList.toggle('hidden', view !== 'list');
+      ganttView.classList.toggle('hidden', view !== 'gantt');
+      renderCurrentView();
+    };
+
+    const renderCurrentView = () => {
+      const filtered = applyFilters();
+      if (currentView === 'list') {
+        renderSessionList(filtered);
+      } else {
+        renderGanttChart(filtered);
+      }
+    };
+
+    // Session List View
+    const renderSessionList = (sessions) => {
       if (sessions.length === 0) {
-        sessionList.innerHTML = `
+        listView.innerHTML = `
           <div class="empty-state">
             <p>No sessions found.</p>
             <button id="empty-refresh">Scan for Sessions</button>
@@ -224,10 +557,9 @@
         return;
       }
 
-      // Sort by start time descending
       sessions.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
 
-      sessionList.innerHTML = sessions.map(s => `
+      listView.innerHTML = sessions.map(s => `
         <div class="session-card" data-id="${s.id}">
           <div>
             <div class="session-id">${s.id.substring(0, 8)}...</div>
@@ -244,46 +576,172 @@
         </div>
       `).join('');
 
-      // Add click handlers
       document.querySelectorAll('.session-card').forEach(card => {
-        card.addEventListener('click', () => showDetail(card.dataset.id));
+        card.addEventListener('click', () => showSessionDetail(card.dataset.id));
       });
     };
 
-    const loadSessions = async () => {
-      try {
-        const res = await fetch('/api/sessions');
-        const sessions = await res.json();
-        statusEl.textContent = `${sessions.length} session(s) loaded`;
-        renderSessions(sessions);
-      } catch (err) {
-        statusEl.textContent = 'Error loading sessions';
-        sessionList.innerHTML = `<div class="empty-state"><p>Failed to load sessions</p></div>`;
+    // Gantt Chart View
+    const renderGanttChart = (sessions) => {
+      if (sessions.length === 0) {
+        ganttChart.innerHTML = '<div class="empty-state"><p>No sessions to display</p></div>';
+        return;
       }
+
+      sessions.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+
+      // Calculate scale
+      const maxValue = axisMode === 'tokens'
+        ? Math.max(...sessions.map(s => s.totalTokens))
+        : Math.max(...sessions.map(s => s.durationMs));
+
+      const chartWidth = 800;
+
+      // Build axis labels
+      const axisLabels = [];
+      const numLabels = 5;
+      for (let i = 0; i <= numLabels; i++) {
+        const value = (maxValue / numLabels) * i;
+        const label = axisMode === 'tokens' ? formatTokens(value) : formatDuration(value);
+        axisLabels.push({ value, label, position: (i / numLabels) * 100 });
+      }
+
+      // Build chart HTML
+      let html = `
+        <div class="gantt-axis" style="position: relative; height: 20px; margin-bottom: 8px;">
+          ${axisLabels.map(a => `<span class="axis-label" style="left: calc(200px + ${a.position}% * (100% - 200px) / 100)">${a.label}</span>`).join('')}
+        </div>
+      `;
+
+      for (const session of sessions) {
+        const events = session.events || [];
+        const label = session.folder.split('/').pop() || session.id.substring(0, 8);
+
+        html += `
+          <div class="gantt-row" data-session-id="${session.id}">
+            <div class="gantt-label" title="${session.folder}">${label}</div>
+            <div class="gantt-bar-container" data-id="${session.id}">
+              ${renderGanttBar(session, events, maxValue)}
+            </div>
+          </div>
+        `;
+      }
+
+      ganttChart.innerHTML = html;
+
+      // Add click handlers
+      document.querySelectorAll('.gantt-bar-container').forEach(bar => {
+        bar.addEventListener('click', (e) => {
+          const sessionId = bar.dataset.id;
+          const rect = bar.getBoundingClientRect();
+          const clickX = (e.clientX - rect.left) / rect.width;
+          showSessionDetail(sessionId, clickX);
+        });
+      });
     };
 
-    const refreshSessions = async () => {
-      refreshBtn.disabled = true;
-      refreshBtn.textContent = 'Scanning...';
-      statusEl.textContent = 'Scanning for sessions...';
-
-      try {
-        const res = await fetch('/api/refresh', { method: 'POST' });
-        const data = await res.json();
-        statusEl.textContent = data.message;
-        await loadSessions();
-      } catch (err) {
-        statusEl.textContent = 'Error refreshing sessions';
-      } finally {
-        refreshBtn.disabled = false;
-        refreshBtn.textContent = 'Refresh Logs';
+    const renderGanttBar = (session, events, maxValue) => {
+      if (events.length === 0) {
+        return '<div style="width: 100%; height: 100%; background: #333;"></div>';
       }
+
+      const totalValue = axisMode === 'tokens' ? session.totalTokens : session.durationMs;
+      const widthPercent = (totalValue / maxValue) * 100;
+
+      // Group consecutive events of same type for efficiency
+      let segments = [];
+      let cumulativeValue = 0;
+
+      for (const event of events) {
+        const eventValue = axisMode === 'tokens'
+          ? event.tokenCount
+          : (new Date(event.timestamp).getTime() - new Date(session.startTime).getTime());
+
+        if (eventValue > 0) {
+          const startPercent = (cumulativeValue / totalValue) * widthPercent;
+          const segmentWidth = (event.tokenCount / totalValue) * widthPercent;
+
+          if (segmentWidth > 0.1) { // Only render visible segments
+            segments.push({
+              type: event.type,
+              start: startPercent,
+              width: Math.max(segmentWidth, 0.5),
+              event: event
+            });
+          }
+        }
+        cumulativeValue += event.tokenCount;
+      }
+
+      // Render SVG
+      return `
+        <svg width="100%" height="100%" preserveAspectRatio="none">
+          ${segments.map(seg => `
+            <rect
+              x="${seg.start}%"
+              y="0"
+              width="${seg.width}%"
+              height="100%"
+              class="event-${seg.type}"
+              data-type="${seg.type}"
+              data-tokens="${seg.event.tokenCount}"
+            />
+          `).join('')}
+        </svg>
+        ${renderMarkers(session, events, totalValue, widthPercent)}
+      `;
     };
 
-    const showDetail = async (id) => {
+    const renderMarkers = (session, events, totalValue, widthPercent) => {
+      let markers = '';
+      let cumulativeTokens = 0;
+
+      for (const event of events) {
+        const position = (cumulativeTokens / totalValue) * widthPercent;
+
+        if (event.type === 'git_op') {
+          markers += `<div class="gantt-marker marker-git" style="left: ${position}%" title="Git operation"></div>`;
+        } else if (event.type === 'error') {
+          markers += `<div class="gantt-marker marker-error" style="left: ${position}%" title="Error"></div>`;
+        }
+
+        cumulativeTokens += event.tokenCount;
+      }
+
+      // Add annotation markers
+      if (session.annotations) {
+        for (const ann of session.annotations) {
+          if (ann.eventIndex !== undefined) {
+            const tokensBefore = events.slice(0, ann.eventIndex).reduce((sum, e) => sum + e.tokenCount, 0);
+            const position = (tokensBefore / totalValue) * widthPercent;
+            markers += `<div class="gantt-marker marker-annotation" style="left: ${position}%" title="${ann.type}: ${ann.summary}"></div>`;
+          }
+        }
+      }
+
+      return markers;
+    };
+
+    // Detail Panel
+    const showSessionDetail = async (id, clickPosition = null) => {
       try {
         const res = await fetch(`/api/sessions/${id}`);
         const session = await res.json();
+
+        detailTitle.textContent = 'Session Details';
+
+        let eventIndex = null;
+        if (clickPosition !== null && session.events?.length > 0) {
+          const totalTokens = session.totalTokens;
+          let cumulative = 0;
+          for (let i = 0; i < session.events.length; i++) {
+            cumulative += session.events[i].tokenCount;
+            if (cumulative / totalTokens >= clickPosition) {
+              eventIndex = i;
+              break;
+            }
+          }
+        }
 
         detailContent.innerHTML = `
           <div class="detail-item">
@@ -315,14 +773,53 @@
             <div class="detail-value">${session.totalTokens.toLocaleString()}</div>
           </div>
           <div class="detail-item">
-            <div class="detail-label">Events</div>
-            <div class="detail-value">${session.events?.length || 0} events</div>
-          </div>
-          <div class="detail-item">
             <div class="detail-label">Analyzed</div>
-            <div class="detail-value">${session.analyzed ? 'Yes' : 'No'}</div>
+            <div class="detail-value">
+              ${session.analyzed ? 'Yes' : 'No'}
+              ${!session.analyzed && session.events?.length > 0 ? `
+                <button id="analyze-btn" data-session-id="${session.id}" style="margin-left: 12px; padding: 4px 8px; font-size: 0.75rem;">
+                  Analyze with AI
+                </button>
+              ` : ''}
+            </div>
           </div>
+
+          <div class="detail-section">
+            <h3>Events (${session.events?.length || 0})</h3>
+            <div class="event-list">
+              ${renderEventList(session.events || [], eventIndex)}
+            </div>
+          </div>
+
+          ${session.annotations?.length > 0 ? `
+            <div class="detail-section">
+              <h3>Annotations</h3>
+              ${session.annotations.map(a => `
+                <div class="event-item">
+                  <span class="event-type" style="background: #f1c40f; color: #000">${a.type}</span>
+                  ${a.summary}
+                  <span style="color: #888; float: right">${Math.round(a.confidence * 100)}%</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
         `;
+
+        // Scroll to clicked event if applicable
+        if (eventIndex !== null) {
+          setTimeout(() => {
+            const highlightedEvent = detailContent.querySelector('.event-item.highlight');
+            if (highlightedEvent) {
+              highlightedEvent.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100);
+        }
+
+        // Add analyze button handler
+        const analyzeBtn = document.getElementById('analyze-btn');
+        if (analyzeBtn) {
+          analyzeBtn.addEventListener('click', () => analyzeSession(analyzeBtn.dataset.sessionId));
+        }
 
         detailPanel.classList.add('open');
       } catch (err) {
@@ -330,13 +827,151 @@
       }
     };
 
+    const renderEventList = (events, highlightIndex = null) => {
+      // Limit to most significant events for display
+      const maxEvents = 50;
+      const displayEvents = events.length > maxEvents
+        ? events.filter((e, i) =>
+            e.type === 'git_op' ||
+            e.type === 'error' ||
+            e.tokenCount > 1000 ||
+            i === highlightIndex ||
+            i < 10 ||
+            i > events.length - 5
+          ).slice(0, maxEvents)
+        : events;
+
+      return displayEvents.map((e, i) => {
+        const originalIndex = events.indexOf(e);
+        const isHighlighted = originalIndex === highlightIndex;
+        return `
+          <div class="event-item ${isHighlighted ? 'highlight' : ''}" style="${isHighlighted ? 'border: 1px solid #f1c40f;' : ''}">
+            <span class="event-type event-${e.type}">${e.type.replace('_', ' ')}</span>
+            <span class="event-tokens">${formatTokens(e.tokenCount)}</span>
+            <span class="event-time">${e.timestamp ? formatDate(e.timestamp) : 'No timestamp'}</span>
+          </div>
+        `;
+      }).join('');
+    };
+
+    // API calls
+    const loadSessions = async () => {
+      try {
+        const res = await fetch('/api/sessions');
+        allSessions = await res.json();
+        statusEl.textContent = `${allSessions.length} session(s) loaded`;
+        updateFilterOptions();
+        renderCurrentView();
+      } catch (err) {
+        statusEl.textContent = 'Error loading sessions';
+        listView.innerHTML = `<div class="empty-state"><p>Failed to load sessions</p></div>`;
+      }
+    };
+
+    const refreshSessions = async () => {
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = 'Scanning...';
+      statusEl.textContent = 'Scanning for sessions...';
+
+      try {
+        const res = await fetch('/api/refresh', { method: 'POST' });
+        const data = await res.json();
+        statusEl.textContent = data.message;
+        await loadSessions();
+      } catch (err) {
+        statusEl.textContent = 'Error refreshing sessions';
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = 'Refresh Logs';
+      }
+    };
+
+    const analyzeSession = async (sessionId) => {
+      const analyzeBtn = document.getElementById('analyze-btn');
+      if (analyzeBtn) {
+        analyzeBtn.disabled = true;
+        analyzeBtn.textContent = 'Analyzing...';
+      }
+      statusEl.textContent = 'Analyzing session with AI...';
+
+      try {
+        const res = await fetch(`/api/sessions/${sessionId}/analyze`, { method: 'POST' });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Analysis failed');
+        }
+
+        statusEl.textContent = data.message;
+        // Reload session detail to show annotations
+        showSessionDetail(sessionId);
+        // Refresh the session list to update analyzed status
+        await loadSessions();
+      } catch (err) {
+        statusEl.textContent = `Analysis error: ${err.message}`;
+        if (analyzeBtn) {
+          analyzeBtn.disabled = false;
+          analyzeBtn.textContent = 'Analyze with AI';
+        }
+      }
+    };
+
+    const loadTickets = async () => {
+      try {
+        const res = await fetch('/api/tickets');
+        allTickets = await res.json();
+      } catch (err) {
+        console.error('Error loading tickets:', err);
+        allTickets = [];
+      }
+    };
+
+    const syncLinear = async () => {
+      syncLinearBtn.disabled = true;
+      syncLinearBtn.textContent = 'Syncing...';
+      statusEl.textContent = 'Syncing with Linear...';
+
+      try {
+        const res = await fetch('/api/linear/sync', { method: 'POST' });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Sync failed');
+        }
+
+        statusEl.textContent = data.message;
+        await loadTickets();
+        await loadSessions();
+      } catch (err) {
+        statusEl.textContent = `Linear sync error: ${err.message}`;
+      } finally {
+        syncLinearBtn.disabled = false;
+        syncLinearBtn.textContent = 'Sync Linear';
+      }
+    };
+
+    // Event listeners
     closeDetail.addEventListener('click', () => {
       detailPanel.classList.remove('open');
     });
 
     refreshBtn.addEventListener('click', refreshSessions);
+    syncLinearBtn.addEventListener('click', syncLinear);
+    viewListBtn.addEventListener('click', () => switchView('list'));
+    viewGanttBtn.addEventListener('click', () => switchView('gantt'));
+
+    filterDateFrom.addEventListener('change', renderCurrentView);
+    filterDateTo.addEventListener('change', renderCurrentView);
+    filterFolder.addEventListener('change', renderCurrentView);
+    filterBranch.addEventListener('change', renderCurrentView);
+    filterTicket.addEventListener('change', renderCurrentView);
+    axisModeSelect.addEventListener('change', (e) => {
+      axisMode = e.target.value;
+      if (currentView === 'gantt') renderGanttChart(applyFilters());
+    });
 
     // Initial load
+    loadTickets();
     loadSessions();
   </script>
 </body>

@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import type { LogEntry, ParsedSession } from '../types/index.js';
 
 export const parseJsonlContent = (content: string): LogEntry[] => {
@@ -17,9 +18,11 @@ export const parseJsonlContent = (content: string): LogEntry[] => {
 };
 
 export const extractSessionMetadata = (
-  entries: LogEntry[]
+  entries: LogEntry[],
+  filePath?: string
 ): {
   id: string;
+  parentSessionId: string | null;
   startTime: string;
   endTime: string;
   folder: string;
@@ -30,12 +33,16 @@ export const extractSessionMetadata = (
     .filter((t): t is string => typeof t === 'string')
     .sort();
 
-  const sessionId = entries.find((e) => e.sessionId)?.sessionId ?? 'unknown';
+  // Use filename as unique ID, embedded sessionId becomes parent (for compaction tracking)
+  const embeddedSessionId = entries.find((e) => e.sessionId)?.sessionId ?? null;
+  const fileBasedId = filePath ? basename(filePath, '.jsonl') : embeddedSessionId ?? 'unknown';
+
   const folder = entries.find((e) => e.cwd)?.cwd ?? '';
   const branch = entries.find((e) => e.gitBranch)?.gitBranch ?? null;
 
   return {
-    id: sessionId,
+    id: fileBasedId,
+    parentSessionId: embeddedSessionId !== fileBasedId ? embeddedSessionId : null,
     startTime: timestamps[0] ?? '',
     endTime: timestamps[timestamps.length - 1] ?? '',
     folder,
@@ -57,15 +64,12 @@ export const calculateTokens = (entries: LogEntry[]): number => {
   }, 0);
 };
 
-export const parseSessionFromContent = (content: string): ParsedSession | null => {
+export const parseSessionFromContent = (content: string, filePath?: string): ParsedSession | null => {
   const entries = parseJsonlContent(content);
   if (entries.length === 0) return null;
 
-  const metadata = extractSessionMetadata(entries);
+  const metadata = extractSessionMetadata(entries, filePath);
   const totalTokens = calculateTokens(entries);
-
-  const startDate = new Date(metadata.startTime);
-  const endDate = new Date(metadata.endTime);
 
   return {
     ...metadata,

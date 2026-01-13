@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { createApp } from './api/app.js';
 import { createSessionRepository } from './db/sessions.js';
 import { loadConfig } from './config.js';

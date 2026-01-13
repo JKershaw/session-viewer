@@ -26,6 +26,7 @@ export interface Annotation {
 
 export interface Session {
   id: string;
+  parentSessionId: string | null; // Original session ID from logs (tracks compaction chain)
   startTime: string;
   endTime: string;
   durationMs: number;
@@ -36,6 +37,7 @@ export interface Session {
   analyzed: boolean;
   events: Event[];
   annotations: Annotation[];
+  [key: string]: unknown;
 }
 
 export interface LinearTicket {
@@ -46,6 +48,7 @@ export interface LinearTicket {
   status: string;
   project: string;
   sessionIds: string[];
+  [key: string]: unknown;
 }
 
 export interface LogEntry {
@@ -69,10 +72,12 @@ export interface LogEntry {
 
 export interface ParsedSession {
   id: string;
+  parentSessionId: string | null; // Original session ID from logs (tracks compaction chain)
   startTime: string;
   endTime: string;
   folder: string;
   branch: string | null;
   entries: LogEntry[];
   totalTokens: number;
+  [key: string]: unknown;
 }
