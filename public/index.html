@@ -400,6 +400,9 @@
           <option value="ticket">Tickets</option>
         </select>
       </div>
+      <div class="filter-group" style="align-self: flex-end;">
+        <button id="clear-filters-btn" class="secondary">Clear Filters</button>
+      </div>
     </div>
 
     <div id="status" class="status"></div>
@@ -440,6 +443,10 @@
     let currentView = 'list';
     let axisMode = 'tokens';
     let groupMode = 'session';
+    let visibleSessionCount = 100;
+    const SESSIONS_PER_PAGE = 100;
+    const MAX_CACHE_SIZE = 50;
+    let sessionDetailCache = new Map(); // Cache for full session details (LRU-like)
 
     // DOM Elements
     const listView = document.getElementById('list-view');
@@ -484,6 +491,44 @@
     const formatShortDate = (iso) => {
       const d = new Date(iso);
       return d.toLocaleDateString();
+    };
+
+    // Escape HTML to prevent XSS
+    const escapeHtml = (str) => {
+      if (str === null || str === undefined) return '';
+      return String(str).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    };
+
+    // Format date for HTML date input (YYYY-MM-DD)
+    const formatDateForInput = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    // Set default date filter to last 7 days
+    const setDefaultDateFilter = () => {
+      const today = new Date();
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(today.getDate() - 7);
+
+      filterDateTo.value = formatDateForInput(today);
+      filterDateFrom.value = formatDateForInput(sevenDaysAgo);
+    };
+
+    // Format tooltip for aggregated segments
+    const formatSegmentTooltip = (seg) => {
+      const typeLabel = seg.type.replace('_', ' ');
+      const tokenInfo = formatTokens(seg.totalTokens);
+
+      if (seg.count === 1) {
+        return `${typeLabel}: ${tokenInfo} tokens`;
+      }
+
+      return `${typeLabel} (${seg.count} events): ${tokenInfo} tokens`;
     };
 
     // Event type colors
@@ -568,14 +613,19 @@
 
       sessions.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
 
-      listView.innerHTML = sessions.map(s => `
-        <div class="session-card" data-id="${s.id}">
+      // Pagination: slice sessions to show only visibleSessionCount
+      const totalCount = sessions.length;
+      const visibleSessions = sessions.slice(0, visibleSessionCount);
+      const hasMore = totalCount > visibleSessionCount;
+
+      let html = visibleSessions.map(s => `
+        <div class="session-card" data-id="${escapeHtml(s.id)}">
           <div>
-            <div class="session-id">${s.id.substring(0, 8)}...</div>
-            <div class="session-folder">${s.folder}</div>
+            <div class="session-id">${escapeHtml(s.id.substring(0, 8))}...</div>
+            <div class="session-folder">${escapeHtml(s.folder)}</div>
           </div>
           <div>
-            ${s.branch ? `<span class="session-branch">${s.branch}</span>` : ''}
+            ${s.branch ? `<span class="session-branch">${escapeHtml(s.branch)}</span>` : ''}
           </div>
           <div class="session-time">
             <div>${formatDate(s.startTime)}</div>
@@ -585,9 +635,41 @@
         </div>
       `).join('');
 
+      // Add "Load More" button if there are more sessions
+      if (hasMore) {
+        const remaining = totalCount - visibleSessionCount;
+        html += `
+          <div style="text-align: center; padding: 20px; margin-top: 8px;">
+            <button id="load-more-btn" class="secondary" style="padding: 12px 24px;">
+              Load More Sessions
+            </button>
+            <div style="font-size: 0.75rem; color: #888; margin-top: 8px;">
+              Showing ${visibleSessionCount} of ${totalCount} sessions (${remaining} more)
+            </div>
+          </div>
+        `;
+      } else if (totalCount > SESSIONS_PER_PAGE) {
+        html += `
+          <div style="text-align: center; padding: 12px; font-size: 0.75rem; color: #888;">
+            Showing all ${totalCount} sessions
+          </div>
+        `;
+      }
+
+      listView.innerHTML = html;
+
       document.querySelectorAll('.session-card').forEach(card => {
         card.addEventListener('click', () => showSessionDetail(card.dataset.id));
       });
+
+      // Attach Load More handler
+      const loadMoreBtn = document.getElementById('load-more-btn');
+      if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', () => {
+          visibleSessionCount += SESSIONS_PER_PAGE;
+          renderCurrentView();
+        });
+      }
     };
 
     // Aggregation for ticket view
@@ -729,6 +811,68 @@
       });
     };
 
+    // Aggregate consecutive same-type events to reduce DOM elements
+    const aggregateEvents = (events, totalValue, widthPercent, session) => {
+      if (events.length === 0) return [];
+
+      const aggregatedSegments = [];
+      let currentGroup = null;
+      let cumulativeValue = 0;
+
+      for (let i = 0; i < events.length; i++) {
+        const event = events[i];
+
+        // Calculate event value based on axis mode
+        let eventValue;
+        if (axisMode === 'tokens') {
+          eventValue = event.tokenCount;
+        } else {
+          const eventTime = new Date(event.timestamp).getTime();
+          const nextTime = i + 1 < events.length
+            ? new Date(events[i + 1].timestamp).getTime()
+            : new Date(session.endTime).getTime();
+          eventValue = Math.max(0, nextTime - eventTime);
+        }
+
+        const startPercent = (cumulativeValue / totalValue) * widthPercent;
+        const segmentWidth = (eventValue / totalValue) * widthPercent;
+
+        // Check if we should extend current group or start new one
+        if (currentGroup && currentGroup.type === event.type) {
+          // Extend current group
+          currentGroup.width += segmentWidth;
+          currentGroup.count += 1;
+          currentGroup.totalTokens += event.tokenCount;
+          currentGroup.endTime = event.timestamp;
+        } else {
+          // Finalize previous group if exists and visible
+          if (currentGroup && currentGroup.width > 0.1) {
+            aggregatedSegments.push(currentGroup);
+          }
+
+          // Start new group
+          currentGroup = {
+            type: event.type,
+            start: startPercent,
+            width: segmentWidth,
+            count: 1,
+            totalTokens: event.tokenCount,
+            startTime: event.timestamp,
+            endTime: event.timestamp
+          };
+        }
+
+        cumulativeValue += eventValue;
+      }
+
+      // Don't forget the last group
+      if (currentGroup && currentGroup.width > 0.1) {
+        aggregatedSegments.push(currentGroup);
+      }
+
+      return aggregatedSegments;
+    };
+
     const renderGanttBar = (session, events, maxValue) => {
       if (events.length === 0) {
         return '<div style="width: 100%; height: 100%; background: #333;"></div>';
@@ -737,54 +881,25 @@
       const totalValue = axisMode === 'tokens' ? session.totalTokens : session.durationMs;
       const widthPercent = (totalValue / maxValue) * 100;
 
-      // Group consecutive events of same type for efficiency
-      let segments = [];
-      let cumulativeValue = 0;
+      // Use event aggregation to reduce DOM elements
+      const segments = aggregateEvents(events, totalValue, widthPercent, session);
 
-      for (let i = 0; i < events.length; i++) {
-        const event = events[i];
-        let eventValue;
-
-        if (axisMode === 'tokens') {
-          eventValue = event.tokenCount;
-        } else {
-          // Time mode: use duration to next event, or to session end for last event
-          const eventTime = new Date(event.timestamp).getTime();
-          const nextTime = i + 1 < events.length
-            ? new Date(events[i + 1].timestamp).getTime()
-            : new Date(session.endTime).getTime();
-          eventValue = Math.max(0, nextTime - eventTime);
-        }
-
-        if (eventValue > 0) {
-          const startPercent = (cumulativeValue / totalValue) * widthPercent;
-          const segmentWidth = (eventValue / totalValue) * widthPercent;
-
-          if (segmentWidth > 0.1) { // Only render visible segments
-            segments.push({
-              type: event.type,
-              start: startPercent,
-              width: Math.max(segmentWidth, 0.5),
-              event: event
-            });
-          }
-        }
-        cumulativeValue += eventValue;
-      }
-
-      // Render SVG
+      // Render SVG with aggregated segments
       return `
         <svg width="100%" height="100%" preserveAspectRatio="none">
           ${segments.map(seg => `
             <rect
               x="${seg.start}%"
               y="0"
-              width="${seg.width}%"
+              width="${Math.max(seg.width, 0.5)}%"
               height="100%"
               class="event-${seg.type}"
               data-type="${seg.type}"
-              data-tokens="${seg.event.tokenCount}"
-            />
+              data-count="${seg.count}"
+              data-tokens="${seg.totalTokens}"
+            >
+              <title>${formatSegmentTooltip(seg)}</title>
+            </rect>
           `).join('')}
         </svg>
         ${renderMarkers(session, events, totalValue, widthPercent)}
@@ -846,12 +961,11 @@
     // Detail Panel
     const showSessionDetail = async (id, clickPosition = null) => {
       try {
-        // Fetch session and git correlations in parallel
-        const [sessionRes, gitRes] = await Promise.all([
-          fetch(`/api/sessions/${id}`),
+        // Use cache for session details, fetch git correlations separately
+        const [session, gitRes] = await Promise.all([
+          fetchSessionWithEvents(id),
           fetch(`/api/sessions/${id}/git-correlations`)
         ]);
-        const session = await sessionRes.json();
         const gitData = await gitRes.json().catch(() => ({ correlations: [] }));
 
         detailTitle.textContent = 'Session Details';
@@ -1000,11 +1114,34 @@
       }).join('');
     };
 
+    // Session cache helpers (LRU-like cache with size limit)
+    const fetchSessionWithEvents = async (sessionId) => {
+      if (sessionDetailCache.has(sessionId)) {
+        // Move to end (most recently used)
+        const session = sessionDetailCache.get(sessionId);
+        sessionDetailCache.delete(sessionId);
+        sessionDetailCache.set(sessionId, session);
+        return session;
+      }
+      const res = await fetch(`/api/sessions/${sessionId}`);
+      const session = await res.json();
+
+      // Enforce cache size limit (remove oldest entries)
+      while (sessionDetailCache.size >= MAX_CACHE_SIZE) {
+        const oldestKey = sessionDetailCache.keys().next().value;
+        sessionDetailCache.delete(oldestKey);
+      }
+
+      sessionDetailCache.set(sessionId, session);
+      return session;
+    };
+
     // API calls
     const loadSessions = async () => {
       try {
         const res = await fetch('/api/sessions');
         allSessions = await res.json();
+        visibleSessionCount = SESSIONS_PER_PAGE; // Reset pagination on fresh load
         statusEl.textContent = `${allSessions.length} session(s) loaded`;
         updateFilterOptions();
         renderCurrentView();
@@ -1018,6 +1155,9 @@
       refreshBtn.disabled = true;
       refreshBtn.textContent = 'Scanning...';
       statusEl.textContent = 'Scanning for sessions...';
+
+      // Clear cache since session data may have changed
+      sessionDetailCache.clear();
 
       try {
         const res = await fetch('/api/refresh', { method: 'POST' });
@@ -1130,11 +1270,29 @@
     viewListBtn.addEventListener('click', () => switchView('list'));
     viewGanttBtn.addEventListener('click', () => switchView('gantt'));
 
-    filterDateFrom.addEventListener('change', renderCurrentView);
-    filterDateTo.addEventListener('change', renderCurrentView);
-    filterFolder.addEventListener('change', renderCurrentView);
-    filterBranch.addEventListener('change', renderCurrentView);
-    filterTicket.addEventListener('change', renderCurrentView);
+    // Clear filters button
+    const clearFiltersBtn = document.getElementById('clear-filters-btn');
+    clearFiltersBtn.addEventListener('click', () => {
+      filterDateFrom.value = '';
+      filterDateTo.value = '';
+      filterFolder.value = '';
+      filterBranch.value = '';
+      filterTicket.value = '';
+      visibleSessionCount = SESSIONS_PER_PAGE;
+      renderCurrentView();
+    });
+
+    // Reset pagination on filter change
+    const handleFilterChange = () => {
+      visibleSessionCount = SESSIONS_PER_PAGE;
+      renderCurrentView();
+    };
+
+    filterDateFrom.addEventListener('change', handleFilterChange);
+    filterDateTo.addEventListener('change', handleFilterChange);
+    filterFolder.addEventListener('change', handleFilterChange);
+    filterBranch.addEventListener('change', handleFilterChange);
+    filterTicket.addEventListener('change', handleFilterChange);
     axisModeSelect.addEventListener('change', (e) => {
       axisMode = e.target.value;
       if (currentView === 'gantt') renderGanttChart(applyFilters());
@@ -1145,6 +1303,7 @@
     });
 
     // Initial load
+    setDefaultDateFilter(); // Set last 7 days as default
     loadTickets();
     loadSessions();
   </script>

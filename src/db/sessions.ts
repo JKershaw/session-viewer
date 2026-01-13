@@ -1,11 +1,12 @@
 import { getClient } from './client.js';
-import type { Session } from '../types/index.js';
+import type { Session, SessionQueryOptions, PaginatedResult } from '../types/index.js';
 import type { MangoCollection } from '@jkershaw/mangodb';
 
 export interface SessionRepository {
   upsertSession: (session: Session) => Promise<void>;
   getSession: (id: string) => Promise<Session | null>;
   getAllSessions: () => Promise<Session[]>;
+  getSessions: (options: SessionQueryOptions) => Promise<PaginatedResult<Session>>;
   deleteSession: (id: string) => Promise<void>;
 }
 
@@ -39,6 +40,43 @@ export const createSessionRepository = async (
     return await collection.find({}).toArray();
   };
 
+  const getSessions = async (
+    options: SessionQueryOptions
+  ): Promise<PaginatedResult<Session>> => {
+    const { limit = 50, offset = 0, dateFrom, dateTo } = options;
+
+    // Get all sessions and filter in memory
+    // (MangoDB doesn't support complex queries, so we filter after fetching)
+    let allSessions = await collection.find({}).toArray();
+
+    // Filter by date range if provided
+    if (dateFrom) {
+      const fromDate = new Date(dateFrom);
+      allSessions = allSessions.filter(
+        (s: Session) => new Date(s.startTime) >= fromDate
+      );
+    }
+    if (dateTo) {
+      const toDate = new Date(dateTo);
+      allSessions = allSessions.filter(
+        (s: Session) => new Date(s.startTime) <= toDate
+      );
+    }
+
+    // Sort by startTime descending (most recent first)
+    allSessions.sort(
+      (a: Session, b: Session) =>
+        new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+    );
+
+    const total = allSessions.length;
+
+    // Apply pagination
+    const data = allSessions.slice(offset, offset + limit);
+
+    return { data, total, limit, offset };
+  };
+
   const deleteSession = async (id: string): Promise<void> => {
     await collection.deleteOne({ id });
   };
@@ -47,6 +85,7 @@ export const createSessionRepository = async (
     upsertSession,
     getSession,
     getAllSessions,
+    getSessions,
     deleteSession
   };
 };

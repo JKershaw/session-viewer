@@ -42,17 +42,69 @@ export const createApp = (
   const staticDir = config.staticDir ?? join(process.cwd(), 'public');
   app.use(express.static(staticDir));
 
+  // Helper for date validation
+  const isValidISODate = (dateString: string): boolean => {
+    const date = new Date(dateString);
+    return !isNaN(date.getTime());
+  };
+
   // API Routes
-  app.get('/api/sessions', async (_req: Request, res: Response) => {
+  app.get('/api/sessions', async (req: Request, res: Response) => {
     try {
-      const sessions = await sessionRepo.getAllSessions();
-      // Return sessions without the raw entries to reduce payload size
-      const summaries = sessions.map(({ events, annotations, ...rest }) => ({
-        ...rest,
-        eventCount: events?.length ?? 0,
-        annotationCount: annotations?.length ?? 0
-      }));
-      res.json(summaries);
+      // Parse pagination query parameters
+      const limitParam = req.query.limit as string | undefined;
+      const offsetParam = req.query.offset as string | undefined;
+      const dateFrom = req.query.dateFrom as string | undefined;
+      const dateTo = req.query.dateTo as string | undefined;
+
+      // Check if pagination is requested
+      const usePagination =
+        limitParam !== undefined || offsetParam !== undefined;
+
+      if (usePagination) {
+        // Use paginated endpoint
+        const limit = Math.min(
+          Math.max(1, parseInt(limitParam ?? '50', 10) || 50),
+          100
+        );
+        const offset = Math.max(0, parseInt(offsetParam ?? '0', 10) || 0);
+
+        const result = await sessionRepo.getSessions({
+          limit,
+          offset,
+          dateFrom:
+            dateFrom && isValidISODate(dateFrom) ? dateFrom : undefined,
+          dateTo: dateTo && isValidISODate(dateTo) ? dateTo : undefined
+        });
+
+        // Transform sessions to summaries
+        const summaries = result.data.map(
+          ({ events, annotations, ...rest }) => ({
+            ...rest,
+            eventCount: events?.length ?? 0,
+            annotationCount: annotations?.length ?? 0
+          })
+        );
+
+        res.json({
+          data: summaries,
+          total: result.total,
+          limit: result.limit,
+          offset: result.offset,
+          hasMore: result.offset + result.data.length < result.total,
+          page: Math.floor(result.offset / result.limit) + 1,
+          totalPages: Math.ceil(result.total / result.limit)
+        });
+      } else {
+        // Legacy: return all sessions as array (for backward compatibility)
+        const sessions = await sessionRepo.getAllSessions();
+        const summaries = sessions.map(({ events, annotations, ...rest }) => ({
+          ...rest,
+          eventCount: events?.length ?? 0,
+          annotationCount: annotations?.length ?? 0
+        }));
+        res.json(summaries);
+      }
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch sessions' });
     }

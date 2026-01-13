@@ -2,6 +2,20 @@
 
 This document analyzes how the Session Analyzer UI scales with varying data volumes.
 
+## Implemented Improvements (v1.1)
+
+The following improvements have been implemented to address scalability concerns:
+
+| Improvement | Status | Notes |
+|-------------|--------|-------|
+| Default date filter (last 7 days) | Done | Reduces initial data load |
+| Session detail caching | Done | LRU cache with max 50 sessions |
+| List view pagination (100/page) | Done | "Load More" button for additional sessions |
+| Event aggregation in Gantt | Done | Merges consecutive same-type events |
+| Server-side pagination API | Done | `?limit=N&offset=M&dateFrom=X&dateTo=Y` |
+| XSS protection | Done | HTML escaping for user data |
+| Clear Filters button | Done | Easy reset to see all sessions |
+
 ## Summary
 
 The current implementation works well for small to moderate usage (~50 sessions, ~100 events each) but will degrade significantly with larger datasets due to:

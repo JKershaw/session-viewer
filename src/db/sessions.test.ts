@@ -80,4 +80,148 @@ describe('SessionRepository', () => {
     const found = await repo.getSession('test-session-1');
     assert.strictEqual(found, null);
   });
+
+  test('getSessions returns paginated results', async () => {
+    // Insert 5 sessions
+    for (let i = 1; i <= 5; i++) {
+      await repo.upsertSession(
+        createTestSession({
+          id: `session-${i}`,
+          startTime: `2026-01-0${i}T10:00:00Z`
+        })
+      );
+    }
+
+    const result = await repo.getSessions({ limit: 2, offset: 0 });
+
+    assert.strictEqual(result.total, 5);
+    assert.strictEqual(result.data.length, 2);
+    assert.strictEqual(result.limit, 2);
+    assert.strictEqual(result.offset, 0);
+  });
+
+  test('getSessions with offset skips results', async () => {
+    // Insert 5 sessions
+    for (let i = 1; i <= 5; i++) {
+      await repo.upsertSession(
+        createTestSession({
+          id: `session-${i}`,
+          startTime: `2026-01-0${i}T10:00:00Z`
+        })
+      );
+    }
+
+    const result = await repo.getSessions({ limit: 2, offset: 2 });
+
+    assert.strictEqual(result.total, 5);
+    assert.strictEqual(result.data.length, 2);
+    assert.strictEqual(result.offset, 2);
+  });
+
+  test('getSessions filters by dateFrom', async () => {
+    await repo.upsertSession(
+      createTestSession({
+        id: 'old-session',
+        startTime: '2025-12-01T10:00:00Z'
+      })
+    );
+    await repo.upsertSession(
+      createTestSession({
+        id: 'new-session',
+        startTime: '2026-01-15T10:00:00Z'
+      })
+    );
+
+    const result = await repo.getSessions({
+      dateFrom: '2026-01-01T00:00:00Z'
+    });
+
+    assert.strictEqual(result.total, 1);
+    assert.strictEqual(result.data[0].id, 'new-session');
+  });
+
+  test('getSessions filters by dateTo', async () => {
+    await repo.upsertSession(
+      createTestSession({
+        id: 'old-session',
+        startTime: '2025-12-01T10:00:00Z'
+      })
+    );
+    await repo.upsertSession(
+      createTestSession({
+        id: 'new-session',
+        startTime: '2026-01-15T10:00:00Z'
+      })
+    );
+
+    const result = await repo.getSessions({
+      dateTo: '2025-12-31T23:59:59Z'
+    });
+
+    assert.strictEqual(result.total, 1);
+    assert.strictEqual(result.data[0].id, 'old-session');
+  });
+
+  test('getSessions sorts by startTime descending', async () => {
+    await repo.upsertSession(
+      createTestSession({
+        id: 'first-session',
+        startTime: '2026-01-01T10:00:00Z'
+      })
+    );
+    await repo.upsertSession(
+      createTestSession({
+        id: 'last-session',
+        startTime: '2026-01-10T10:00:00Z'
+      })
+    );
+    await repo.upsertSession(
+      createTestSession({
+        id: 'middle-session',
+        startTime: '2026-01-05T10:00:00Z'
+      })
+    );
+
+    const result = await repo.getSessions({});
+
+    assert.strictEqual(result.data[0].id, 'last-session');
+    assert.strictEqual(result.data[1].id, 'middle-session');
+    assert.strictEqual(result.data[2].id, 'first-session');
+  });
+
+  test('getSessions uses default limit when not specified', async () => {
+    const result = await repo.getSessions({});
+
+    assert.strictEqual(result.limit, 50);
+    assert.strictEqual(result.offset, 0);
+  });
+
+  test('getSessions filters by both dateFrom and dateTo', async () => {
+    await repo.upsertSession(
+      createTestSession({
+        id: 'early-session',
+        startTime: '2025-12-01T10:00:00Z'
+      })
+    );
+    await repo.upsertSession(
+      createTestSession({
+        id: 'middle-session',
+        startTime: '2026-01-15T10:00:00Z'
+      })
+    );
+    await repo.upsertSession(
+      createTestSession({
+        id: 'late-session',
+        startTime: '2026-02-01T10:00:00Z'
+      })
+    );
+
+    const result = await repo.getSessions({
+      dateFrom: '2026-01-01T00:00:00Z',
+      dateTo: '2026-01-31T23:59:59Z'
+    });
+
+    assert.strictEqual(result.total, 1);
+    assert.strictEqual(result.data[0].id, 'middle-session');
+  });
 });
