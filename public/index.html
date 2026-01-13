@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code Session Analyzer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #333;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+    .controls {
+      display: flex;
+      gap: 12px;
+    }
+    button {
+      background: #4a4ae8;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #3a3ad0;
+    }
+    button:disabled {
+      background: #555;
+      cursor: not-allowed;
+    }
+    .status {
+      font-size: 0.875rem;
+      color: #888;
+      margin-bottom: 16px;
+    }
+    .session-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .session-card {
+      background: #252540;
+      border-radius: 8px;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 16px;
+      align-items: center;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .session-card:hover {
+      background: #2a2a50;
+    }
+    .session-id {
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .session-folder {
+      font-size: 0.875rem;
+      color: #aaa;
+      word-break: break-all;
+    }
+    .session-time {
+      font-size: 0.875rem;
+      color: #888;
+      text-align: right;
+    }
+    .session-tokens {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #6ee7b7;
+      text-align: right;
+      min-width: 100px;
+    }
+    .session-branch {
+      font-size: 0.75rem;
+      color: #93c5fd;
+      background: #1e3a5f;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #666;
+    }
+    .empty-state p {
+      margin-bottom: 16px;
+    }
+    .loading {
+      text-align: center;
+      padding: 60px 20px;
+      color: #888;
+    }
+    .detail-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 400px;
+      height: 100vh;
+      background: #252540;
+      border-left: 1px solid #333;
+      padding: 20px;
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: transform 0.3s;
+    }
+    .detail-panel.open {
+      transform: translateX(0);
+    }
+    .detail-panel h2 {
+      font-size: 1rem;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .detail-panel .close {
+      background: none;
+      color: #888;
+      padding: 4px 8px;
+    }
+    .detail-item {
+      margin-bottom: 12px;
+    }
+    .detail-label {
+      font-size: 0.75rem;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .detail-value {
+      font-size: 0.875rem;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Claude Code Session Analyzer</h1>
+      <div class="controls">
+        <button id="refresh-btn">Refresh Logs</button>
+      </div>
+    </header>
+
+    <div id="status" class="status"></div>
+    <div id="session-list" class="session-list">
+      <div class="loading">Loading sessions...</div>
+    </div>
+  </div>
+
+  <div id="detail-panel" class="detail-panel">
+    <h2>
+      Session Details
+      <button class="close" id="close-detail">×</button>
+    </h2>
+    <div id="detail-content"></div>
+  </div>
+
+  <script>
+    const sessionList = document.getElementById('session-list');
+    const statusEl = document.getElementById('status');
+    const refreshBtn = document.getElementById('refresh-btn');
+    const detailPanel = document.getElementById('detail-panel');
+    const detailContent = document.getElementById('detail-content');
+    const closeDetail = document.getElementById('close-detail');
+
+    const formatDate = (iso) => {
+      const d = new Date(iso);
+      return d.toLocaleString();
+    };
+
+    const formatDuration = (ms) => {
+      const minutes = Math.floor(ms / 60000);
+      const hours = Math.floor(minutes / 60);
+      if (hours > 0) return `${hours}h ${minutes % 60}m`;
+      return `${minutes}m`;
+    };
+
+    const formatTokens = (n) => {
+      if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+      if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+      return n.toString();
+    };
+
+    const renderSessions = (sessions) => {
+      if (sessions.length === 0) {
+        sessionList.innerHTML = `
+          <div class="empty-state">
+            <p>No sessions found.</p>
+            <button id="empty-refresh">Scan for Sessions</button>
+          </div>
+        `;
+        document.getElementById('empty-refresh')?.addEventListener('click', refreshSessions);
+        return;
+      }
+
+      // Sort by start time descending
+      sessions.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+
+      sessionList.innerHTML = sessions.map(s => `
+        <div class="session-card" data-id="${s.id}">
+          <div>
+            <div class="session-id">${s.id.substring(0, 8)}...</div>
+            <div class="session-folder">${s.folder}</div>
+          </div>
+          <div>
+            ${s.branch ? `<span class="session-branch">${s.branch}</span>` : ''}
+          </div>
+          <div class="session-time">
+            <div>${formatDate(s.startTime)}</div>
+            <div>${formatDuration(s.durationMs)}</div>
+          </div>
+          <div class="session-tokens">${formatTokens(s.totalTokens)} tokens</div>
+        </div>
+      `).join('');
+
+      // Add click handlers
+      document.querySelectorAll('.session-card').forEach(card => {
+        card.addEventListener('click', () => showDetail(card.dataset.id));
+      });
+    };
+
+    const loadSessions = async () => {
+      try {
+        const res = await fetch('/api/sessions');
+        const sessions = await res.json();
+        statusEl.textContent = `${sessions.length} session(s) loaded`;
+        renderSessions(sessions);
+      } catch (err) {
+        statusEl.textContent = 'Error loading sessions';
+        sessionList.innerHTML = `<div class="empty-state"><p>Failed to load sessions</p></div>`;
+      }
+    };
+
+    const refreshSessions = async () => {
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = 'Scanning...';
+      statusEl.textContent = 'Scanning for sessions...';
+
+      try {
+        const res = await fetch('/api/refresh', { method: 'POST' });
+        const data = await res.json();
+        statusEl.textContent = data.message;
+        await loadSessions();
+      } catch (err) {
+        statusEl.textContent = 'Error refreshing sessions';
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = 'Refresh Logs';
+      }
+    };
+
+    const showDetail = async (id) => {
+      try {
+        const res = await fetch(`/api/sessions/${id}`);
+        const session = await res.json();
+
+        detailContent.innerHTML = `
+          <div class="detail-item">
+            <div class="detail-label">Session ID</div>
+            <div class="detail-value" style="font-family: monospace">${session.id}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Folder</div>
+            <div class="detail-value">${session.folder}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Branch</div>
+            <div class="detail-value">${session.branch || 'N/A'}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Start Time</div>
+            <div class="detail-value">${formatDate(session.startTime)}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">End Time</div>
+            <div class="detail-value">${formatDate(session.endTime)}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Duration</div>
+            <div class="detail-value">${formatDuration(session.durationMs)}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Total Tokens</div>
+            <div class="detail-value">${session.totalTokens.toLocaleString()}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Events</div>
+            <div class="detail-value">${session.events?.length || 0} events</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Analyzed</div>
+            <div class="detail-value">${session.analyzed ? 'Yes' : 'No'}</div>
+          </div>
+        `;
+
+        detailPanel.classList.add('open');
+      } catch (err) {
+        console.error('Error loading session detail:', err);
+      }
+    };
+
+    closeDetail.addEventListener('click', () => {
+      detailPanel.classList.remove('open');
+    });
+
+    refreshBtn.addEventListener('click', refreshSessions);
+
+    // Initial load
+    loadSessions();
+  </script>
+</body>
+</html>

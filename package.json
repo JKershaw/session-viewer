@@ -1,0 +1,30 @@
+{
+  "name": "session-viewer",
+  "version": "1.0.0",
+  "description": "Claude Code Session Analyzer",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "test": "node --import tsx --test src/**/*.test.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://local_proxy@127.0.0.1:46835/git/JKershaw/session-viewer"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@jkershaw/mangodb": "^0.1.0",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.0.8",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
