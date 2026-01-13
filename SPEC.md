@@ -183,20 +183,7 @@ Follow this sequence. Each phase results in a working, usable tool. Do not proce
 
 **Done when:** Git pushes and commits appear as markers on the timeline.
 
-### Phase 6: Linear Integration
-
-**Goal:** Link sessions to Linear tickets.
-
-- Linear API client (pull tickets for configured team/project)
-- Match sessions to tickets via branch name heuristics
-- Store ticket metadata, link to sessions
-- Filter and group by ticket in UI
-- Aggregate view: all sessions for a ticket as one row
-- Tests: API client, matching logic
-
-**Done when:** You can see which sessions contributed to which tickets.
-
-### Phase 7: LLM Analysis
+### Phase 6: LLM Analysis
 
 **Goal:** Generate annotations identifying decisions, blockers, and rework.
 
@@ -209,6 +196,19 @@ Follow this sequence. Each phase results in a working, usable tool. Do not proce
 - Tests: prompt construction, annotation parsing, storage
 
 **Done when:** You can trigger analysis and see AI-identified patterns on the chart.
+
+### Phase 7: Linear Integration
+
+**Goal:** Link sessions to Linear tickets.
+
+- Linear API client (pull tickets for configured team/project)
+- Match sessions to tickets via branch name heuristics
+- Store ticket metadata, link to sessions
+- Filter and group by ticket in UI
+- Aggregate view: all sessions for a ticket as one row
+- Tests: API client, matching logic
+
+**Done when:** You can see which sessions contributed to which tickets.
 
 ---
 
