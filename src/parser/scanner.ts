@@ -2,7 +2,8 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { parseSessionFromContent } from './parser.js';
-import type { ParsedSession } from '../types/index.js';
+import { extractEvents } from './events.js';
+import type { ParsedSession, Event } from '../types/index.js';
 
 export interface ScanConfig {
   logsDir?: string;
@@ -59,7 +60,7 @@ export const scanForSessions = async (
 };
 
 export const scanAndStoreSessions = async (
-  upsertSession: (session: ParsedSession & { durationMs: number; analyzed: boolean; linearTicketId: null; annotations: [] }) => Promise<void>,
+  upsertSession: (session: ParsedSession & { durationMs: number; analyzed: boolean; linearTicketId: null; annotations: []; events: Event[] }) => Promise<void>,
   config: ScanConfig = {}
 ): Promise<number> => {
   const parsed = await scanForSessions(config);
@@ -69,13 +70,16 @@ export const scanAndStoreSessions = async (
     const endDate = new Date(session.endTime);
     const durationMs = endDate.getTime() - startDate.getTime();
 
+    // Extract typed events from log entries
+    const events = extractEvents(session.entries);
+
     await upsertSession({
       ...session,
       durationMs,
       analyzed: false,
       linearTicketId: null,
       annotations: [],
-      events: [] // Will be populated in Phase 2
+      events
     });
   }
 

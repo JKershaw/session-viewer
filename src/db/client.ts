@@ -16,7 +16,7 @@ export const getDb = async (dbName = 'session-viewer'): Promise<Db> => {
   return c.db(dbName);
 };
 
-export const getCollection = async <T extends Document>(
+export const getCollection = async <T extends Record<string, unknown>>(
   collectionName: string,
   dbName = 'session-viewer'
 ): Promise<Collection<T>> => {
