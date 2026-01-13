@@ -1,9 +1,9 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
 import { rm } from 'node:fs/promises';
-import { createSessionRepository, type SessionRepository } from './sessions.js';
-import type { Session } from '../types/index.js';
-import { closeClient } from './client.js';
+import { createSessionRepository, type SessionRepository } from '../../../src/db/sessions.js';
+import type { Session } from '../../../src/types/index.js';
+import { closeClient } from '../../../src/db/client.js';
 
 const TEST_DATA_DIR = './test-data';
 

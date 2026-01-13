@@ -2,10 +2,10 @@ import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
 import { rm } from 'node:fs/promises';
 import type { Server } from 'node:http';
-import { createApp } from './app.js';
-import { closeClient } from '../db/client.js';
-import { createSessionRepository, type SessionRepository } from '../db/sessions.js';
-import type { Session } from '../types/index.js';
+import { createApp } from '../../../src/api/app.js';
+import { closeClient } from '../../../src/db/client.js';
+import { createSessionRepository, type SessionRepository } from '../../../src/db/sessions.js';
+import type { Session } from '../../../src/types/index.js';
 
 const TEST_DATA_DIR = './test-api-data';
 const TEST_PORT = 3099;

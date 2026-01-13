@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { parseGitCommand, parseGitLogOutput } from './client.js';
+import { parseGitCommand, parseGitLogOutput } from '../../../src/git/client.js';
 
 describe('Git Client', () => {
   describe('parseGitCommand', () => {
