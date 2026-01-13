@@ -47,7 +47,7 @@ export const scanForSessions = async (
   for (const filePath of jsonlFiles) {
     try {
       const content = await readFile(filePath, 'utf-8');
-      const session = parseSessionFromContent(content);
+      const session = parseSessionFromContent(content, filePath);
       if (session) {
         sessions.push(session);
       }

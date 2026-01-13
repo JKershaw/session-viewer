@@ -1,4 +1,14 @@
 import type { Event, Annotation, AnnotationType, Session } from '../types/index.js';
+import { ProxyAgent, fetch as undiciFetch } from 'undici';
+
+// Create proxy agent if HTTPS_PROXY is set
+const getProxyDispatcher = () => {
+  const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+  if (proxyUrl) {
+    return new ProxyAgent(proxyUrl);
+  }
+  return undefined;
+};
 
 export interface OpenRouterConfig {
   apiKey: string;
@@ -36,7 +46,8 @@ export const createOpenRouterClient = (config: OpenRouterConfig) => {
   const { apiKey, model = DEFAULT_MODEL, baseUrl = DEFAULT_BASE_URL } = config;
 
   const chat = async (messages: ChatMessage[]): Promise<string> => {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const dispatcher = getProxyDispatcher();
+    const response = await undiciFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -49,7 +60,8 @@ export const createOpenRouterClient = (config: OpenRouterConfig) => {
         messages,
         temperature: 0.3,
         max_tokens: 2000
-      })
+      }),
+      dispatcher
     });
 
     if (!response.ok) {

@@ -72,6 +72,7 @@ describe('OpenRouter LLM Client', () => {
     it('builds a valid prompt with session details', () => {
       const session: Session = {
         id: 'test-session-123',
+        parentSessionId: null,
         startTime: '2024-01-15T10:00:00Z',
         endTime: '2024-01-15T11:00:00Z',
         durationMs: 3600000,

@@ -51,6 +51,7 @@ describe('Linear Client', () => {
   describe('matchSessionsToTickets', () => {
     const createSession = (id: string, branch: string | null): Session => ({
       id,
+      parentSessionId: null,
       startTime: '2024-01-01T00:00:00Z',
       endTime: '2024-01-01T01:00:00Z',
       durationMs: 3600000,
@@ -108,6 +109,7 @@ describe('Linear Client', () => {
   describe('linkSessionsToTickets', () => {
     const createSession = (id: string, branch: string | null): Session => ({
       id,
+      parentSessionId: null,
       startTime: '2024-01-01T00:00:00Z',
       endTime: '2024-01-01T01:00:00Z',
       durationMs: 3600000,

@@ -26,6 +26,7 @@ export interface Annotation {
 
 export interface Session {
   id: string;
+  parentSessionId: string | null; // Original session ID from logs (tracks compaction chain)
   startTime: string;
   endTime: string;
   durationMs: number;
@@ -71,6 +72,7 @@ export interface LogEntry {
 
 export interface ParsedSession {
   id: string;
+  parentSessionId: string | null; // Original session ID from logs (tracks compaction chain)
   startTime: string;
   endTime: string;
   folder: string;

@@ -9,6 +9,7 @@ const TEST_DATA_DIR = './test-data';
 
 const createTestSession = (overrides: Partial<Session> = {}): Session => ({
   id: 'test-session-1',
+  parentSessionId: null,
   startTime: '2026-01-01T10:00:00Z',
   endTime: '2026-01-01T11:00:00Z',
   durationMs: 3600000,
