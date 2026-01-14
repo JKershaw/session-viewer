@@ -10,8 +10,8 @@ import {
   entryToEvent,
   extractEvents,
   extractGitDetails
-} from './events.js';
-import type { LogEntry, Event } from '../types/index.js';
+} from '../../../src/parser/events.js';
+import type { LogEntry, Event } from '../../../src/types/index.js';
 
 describe('Event Extraction', () => {
   describe('classifyEntry', () => {

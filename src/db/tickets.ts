@@ -24,7 +24,6 @@ export const createTicketRepository = (
   const upsertTicket = async (ticket: LinearTicket): Promise<void> => {
     const coll = await getTicketCollection();
     const existing = await coll.findOne({ ticketId: ticket.ticketId });
-
     if (existing) {
       await coll.updateOne({ ticketId: ticket.ticketId }, { $set: ticket });
     } else {
@@ -34,12 +33,12 @@ export const createTicketRepository = (
 
   const getTicket = async (ticketId: string): Promise<LinearTicket | null> => {
     const coll = await getTicketCollection();
-    return coll.findOne({ ticketId });
+    return await coll.findOne({ ticketId });
   };
 
   const getAllTickets = async (): Promise<LinearTicket[]> => {
     const coll = await getTicketCollection();
-    return coll.find({}).toArray();
+    return await coll.find({}).toArray();
   };
 
   const deleteTicket = async (ticketId: string): Promise<void> => {

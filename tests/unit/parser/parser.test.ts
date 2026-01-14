@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { parseJsonlContent, extractSessionMetadata, calculateTokens } from './parser.js';
-import type { LogEntry } from '../types/index.js';
+import { parseJsonlContent, extractSessionMetadata, calculateTokens } from '../../../src/parser/parser.js';
+import type { LogEntry } from '../../../src/types/index.js';
 
 describe('parseJsonlContent', () => {
   test('parses valid JSONL content into array of entries', () => {

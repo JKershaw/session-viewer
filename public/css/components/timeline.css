@@ -1,0 +1,212 @@
+/* Timeline component styles */
+#timeline {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Time axis at top */
+.timeline-axis {
+  display: flex;
+  height: 30px;
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  cursor: grab;
+  user-select: none;
+  overflow: hidden; /* Clip the wide axis-content as it translates */
+}
+
+.timeline-axis:active {
+  cursor: grabbing;
+}
+
+.timeline-axis-content {
+  position: relative;
+  /* Width set dynamically by JS to match timeline content */
+  /* Translates left via transform to sync with timeline scroll */
+}
+
+.timeline-axis-tick {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  padding-left: 4px;
+  border-left: 1px solid var(--color-border);
+}
+
+.timeline-axis-tick.major {
+  border-left-color: var(--color-text-muted);
+}
+
+/* Timeline scroll area */
+.timeline-area {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: auto;
+  cursor: grab;
+}
+
+.timeline-area:active {
+  cursor: grabbing;
+}
+
+/* Timeline content area */
+.timeline-content {
+  position: relative;
+  min-width: 100%;
+  padding-bottom: 40px; /* Space for fixed footer */
+}
+
+/* Session rows */
+.timeline-rows {
+  position: relative;
+}
+
+.timeline-row {
+  height: var(--row-height);
+  margin-bottom: var(--row-gap);
+  position: relative;
+}
+
+/* Session bar - positioned absolutely with swim lane layout */
+.session-bar {
+  position: absolute;
+  height: 35px;
+  background: var(--color-bg-tertiary);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  min-width: 16px;
+}
+
+/* Inner container for event segments - clips to border radius */
+.session-bar-segments {
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.session-bar:hover {
+  transform: scaleY(1.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 5;
+}
+
+/* Label overlay on session bar */
+.session-bar-label {
+  position: absolute;
+  left: 4px;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* Event segments within bar */
+.event-segment {
+  position: absolute;
+  height: 100%;
+  transition: opacity var(--transition-fast);
+}
+
+.event-segment.user { background: var(--color-event-user); }
+.event-segment.assistant { background: var(--color-event-assistant); }
+.event-segment.tool { background: var(--color-event-tool); }
+.event-segment.git { background: var(--color-event-git); }
+.event-segment.error { background: var(--color-event-error); }
+.event-segment.planning { background: var(--color-event-planning); }
+
+/* Idle periods - faded appearance */
+.event-segment.idle {
+  opacity: 0.25;
+}
+
+.session-bar:hover .event-segment.idle {
+  opacity: 0.35;
+}
+
+/* Now indicator */
+.timeline-now {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-event-error);
+  z-index: 15;
+  pointer-events: none;
+}
+
+.timeline-now::after {
+  content: 'Now';
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--color-event-error);
+  white-space: nowrap;
+}
+
+/* Grid lines */
+.timeline-grid-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--color-border);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.timeline-grid-line.major {
+  opacity: 0.6;
+}
+
+/* Loading indicator */
+.timeline-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-text-secondary);
+}
+
+.timeline-loading .spinner {
+  width: 24px;
+  height: 24px;
+}
+
+/* Empty state */
+.timeline-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.timeline-empty h3 {
+  margin-bottom: 8px;
+  color: var(--color-text-primary);
+}

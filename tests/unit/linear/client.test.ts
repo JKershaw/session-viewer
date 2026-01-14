@@ -4,8 +4,8 @@ import {
   extractTicketFromBranch,
   matchSessionsToTickets,
   linkSessionsToTickets
-} from './client.js';
-import type { Session, LinearTicket } from '../types/index.js';
+} from '../../../src/linear/client.js';
+import type { Session, LinearTicket } from '../../../src/types/index.js';
 
 describe('Linear Client', () => {
   describe('extractTicketFromBranch', () => {

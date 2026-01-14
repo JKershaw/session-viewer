@@ -4,8 +4,8 @@ import {
   summarizeEvents,
   buildAnalysisPrompt,
   parseAnnotations
-} from './openrouter.js';
-import type { Event, Session } from '../types/index.js';
+} from '../../../src/llm/openrouter.js';
+import type { Event, Session } from '../../../src/types/index.js';
 
 describe('OpenRouter LLM Client', () => {
   describe('summarizeEvents', () => {

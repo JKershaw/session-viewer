@@ -2,10 +2,10 @@ import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
 import { rm } from 'node:fs/promises';
 import type { Server } from 'node:http';
-import { createApp } from './app.js';
-import { closeClient } from '../db/client.js';
-import { createSessionRepository, type SessionRepository } from '../db/sessions.js';
-import type { Session } from '../types/index.js';
+import { createApp } from '../../../src/api/app.js';
+import { closeClient } from '../../../src/db/client.js';
+import { createSessionRepository, type SessionRepository } from '../../../src/db/sessions.js';
+import type { Session } from '../../../src/types/index.js';
 
 const TEST_DATA_DIR = './test-api-data';
 const TEST_PORT = 3099;
@@ -157,12 +157,12 @@ describe('API', () => {
     assert.strictEqual(data.data[0].id, 'new-session');
   });
 
-  test('GET /api/sessions caps limit at 100', async () => {
+  test('GET /api/sessions allows large limits for loading all sessions', async () => {
     const response = await fetch(`${BASE_URL}/api/sessions?limit=500`);
     const data = await response.json();
 
     assert.strictEqual(response.status, 200);
-    assert.strictEqual(data.limit, 100);
+    assert.strictEqual(data.limit, 500);
   });
 
   test('GET /api/sessions handles negative offset by clamping to 0', async () => {
@@ -185,5 +185,83 @@ describe('API', () => {
 
     assert.strictEqual(response.status, 200);
     assert.strictEqual(data.data.length, 1);
+  });
+
+  test('GET /api/sessions excludes events by default, returns eventCount', async () => {
+    const rawEntry = { type: 'message', timestamp: '2026-01-01T10:00:00Z' };
+    await repo.upsertSession(
+      createTestSession({
+        id: 'session-with-events',
+        events: [
+          { type: 'user_message', timestamp: '2026-01-01T10:00:00Z', tokenCount: 100, raw: rawEntry },
+          { type: 'assistant_message', timestamp: '2026-01-01T10:00:01Z', tokenCount: 500, raw: rawEntry }
+        ],
+        annotations: [
+          { type: 'blocker', summary: 'Test blocker', confidence: 0.9 }
+        ]
+      })
+    );
+
+    const response = await fetch(`${BASE_URL}/api/sessions`);
+    const data = await response.json();
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(data.data.length, 1);
+    assert.strictEqual(data.data[0].events, undefined);
+    assert.strictEqual(data.data[0].annotations, undefined);
+    assert.strictEqual(data.data[0].eventCount, 2);
+    assert.strictEqual(data.data[0].annotationCount, 1);
+  });
+
+  test('GET /api/sessions with includeEvents=true returns events and annotations', async () => {
+    const rawEntry = { type: 'message', timestamp: '2026-01-01T10:00:00Z' };
+    await repo.upsertSession(
+      createTestSession({
+        id: 'session-with-events',
+        events: [
+          { type: 'user_message', timestamp: '2026-01-01T10:00:00Z', tokenCount: 100, raw: rawEntry },
+          { type: 'assistant_message', timestamp: '2026-01-01T10:00:01Z', tokenCount: 500, raw: rawEntry },
+          { type: 'tool_call', timestamp: '2026-01-01T10:00:02Z', tokenCount: 200, raw: rawEntry }
+        ],
+        annotations: [
+          { type: 'blocker', summary: 'Test blocker', confidence: 0.9 },
+          { type: 'decision', summary: 'Test decision', confidence: 0.8 }
+        ]
+      })
+    );
+
+    const response = await fetch(`${BASE_URL}/api/sessions?includeEvents=true`);
+    const data = await response.json();
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(data.data.length, 1);
+    assert.strictEqual(Array.isArray(data.data[0].events), true);
+    assert.strictEqual(data.data[0].events.length, 3);
+    assert.strictEqual(data.data[0].events[0].type, 'user_message');
+    assert.strictEqual(data.data[0].events[1].type, 'assistant_message');
+    assert.strictEqual(data.data[0].events[2].type, 'tool_call');
+    assert.strictEqual(Array.isArray(data.data[0].annotations), true);
+    assert.strictEqual(data.data[0].annotations.length, 2);
+    assert.strictEqual(data.data[0].eventCount, undefined);
+    assert.strictEqual(data.data[0].annotationCount, undefined);
+  });
+
+  test('GET /api/sessions with includeEvents=false excludes events', async () => {
+    const rawEntry = { type: 'message', timestamp: '2026-01-01T10:00:00Z' };
+    await repo.upsertSession(
+      createTestSession({
+        id: 'session-with-events',
+        events: [
+          { type: 'user_message', timestamp: '2026-01-01T10:00:00Z', tokenCount: 100, raw: rawEntry }
+        ]
+      })
+    );
+
+    const response = await fetch(`${BASE_URL}/api/sessions?includeEvents=false`);
+    const data = await response.json();
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(data.data[0].events, undefined);
+    assert.strictEqual(data.data[0].eventCount, 1);
   });
 });

@@ -60,7 +60,7 @@ export const createJobQueue = async (): Promise<JobQueue> => {
 
   const getJob = async (jobId: string): Promise<AnalysisJob | null> => {
     const coll = await getJobCollection();
-    return coll.findOne({ id: jobId });
+    return await coll.findOne({ id: jobId });
   };
 
   const getJobBySessionId = async (sessionId: string): Promise<AnalysisJob | null> => {
@@ -74,7 +74,7 @@ export const createJobQueue = async (): Promise<JobQueue> => {
 
   const getAllJobs = async (): Promise<AnalysisJob[]> => {
     const coll = await getJobCollection();
-    return coll.find({}).toArray();
+    return await coll.find({}).toArray();
   };
 
   const updateJob = async (job: AnalysisJob): Promise<void> => {

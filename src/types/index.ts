@@ -13,6 +13,7 @@ export interface Event {
   timestamp: string;
   tokenCount: number;
   raw: LogEntry;
+  sourceSessionId?: string; // Set when events are merged from multiple sessions
 }
 
 export interface Annotation {
@@ -37,6 +38,9 @@ export interface Session {
   analyzed: boolean;
   events: Event[];
   annotations: Annotation[];
+  // Merge metadata (set when sessions are merged by parentSessionId)
+  _childSessionIds?: string[]; // IDs of sessions that were merged
+  _childCount?: number;        // Number of merged sessions
   [key: string]: unknown;
 }
 
@@ -79,6 +83,7 @@ export interface ParsedSession {
   branch: string | null;
   entries: LogEntry[];
   totalTokens: number;
+  events?: Event[]; // Optional - populated by streaming parser
   [key: string]: unknown;
 }
 
@@ -98,4 +103,22 @@ export interface PaginatedResult<T> {
   total: number;
   limit: number;
   offset: number;
+}
+
+// Timeline-specific query options for infinite scroll
+export interface TimelineQueryOptions {
+  before?: string;  // ISO timestamp - get sessions ending before this time
+  after?: string;   // ISO timestamp - get sessions starting after this time
+  limit?: number;
+  folder?: string;
+  branch?: string;
+  linearTicketId?: string;
+}
+
+export interface TimelineResult {
+  sessions: Session[];
+  hasEarlier: boolean;
+  hasLater: boolean;
+  earliestTime: string | null;
+  latestTime: string | null;
 }
