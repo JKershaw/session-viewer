@@ -133,6 +133,14 @@ const renderContent = (session) => {
   ]);
   contentEl.appendChild(analysisSection);
 
+  // Trust metrics section (loads async)
+  const trustSection = div({ className: 'panel-section', id: 'trust-section' }, [
+    div({ className: 'panel-section-title' }, 'Trust Metrics'),
+    div({ className: 'trust-loading' }, 'Loading trust analysis...')
+  ]);
+  contentEl.appendChild(trustSection);
+  loadTrustMetrics(session.id);
+
   // Annotations
   if (session.annotations && session.annotations.length > 0) {
     const annotationsSection = div({ className: 'panel-section' }, [
@@ -315,4 +323,115 @@ const handleAnalyze = async (sessionId) => {
   } catch (err) {
     console.error('Analysis failed:', err);
   }
+};
+
+/**
+ * Load and display trust metrics for a session.
+ */
+const loadTrustMetrics = async (sessionId) => {
+  const trustSection = document.getElementById('trust-section');
+  if (!trustSection) return;
+
+  try {
+    const trust = await api.getSessionTrust(sessionId);
+
+    // Only update if we're still viewing the same session
+    if (currentSessionId !== sessionId) return;
+
+    // Clear loading message
+    const content = trustSection.querySelector('.trust-loading');
+    if (content) content.remove();
+
+    // Build trust display
+    const trustContent = div({ className: 'trust-content' }, [
+      // Trust score with visual indicator
+      createTrustScoreDisplay(trust.trustScore, trust.autonomous),
+
+      // Steering metrics
+      div({ className: 'trust-group' }, [
+        div({ className: 'trust-group-title' }, 'Steering'),
+        createTrustMetric('Interventions', trust.steering.interventionCount.toString()),
+        createTrustMetric('Goal Shifts', trust.steering.goalShiftCount.toString()),
+        trust.steering.firstInterventionProgress !== null
+          ? createTrustMetric(
+              'First Intervention',
+              `${Math.round(trust.steering.firstInterventionProgress * 100)}% through session`
+            )
+          : null
+      ].filter(Boolean)),
+
+      // Outcome metrics
+      div({ className: 'trust-group' }, [
+        div({ className: 'trust-group-title' }, 'Outcome'),
+        createTrustMetric('Commits', trust.outcome.commitCount.toString()),
+        createTrustMetric('Pushed', trust.outcome.hasPush ? 'Yes' : 'No'),
+        createTrustMetric('Blockers', trust.outcome.blockerCount.toString()),
+        createTrustMetric('Rework', trust.outcome.reworkCount.toString()),
+        createTrustMetric('Errors', trust.outcome.errorCount.toString())
+      ]),
+
+      // Task characteristics
+      div({ className: 'trust-group' }, [
+        div({ className: 'trust-group-title' }, 'Characteristics'),
+        createTrustMetric('Area', trust.characteristics.codebaseArea),
+        trust.characteristics.branchType
+          ? createTrustMetric('Branch Type', trust.characteristics.branchType)
+          : null,
+        createTrustMetric('Tools Used', trust.characteristics.toolDiversity.toString()),
+        createTrustMetric('Subtasks', trust.characteristics.subtaskCount.toString())
+      ].filter(Boolean))
+    ]);
+
+    trustSection.appendChild(trustContent);
+  } catch (err) {
+    console.error('Failed to load trust metrics:', err);
+    const content = trustSection.querySelector('.trust-loading');
+    if (content) {
+      content.textContent = 'Trust analysis unavailable';
+      content.classList.add('trust-error');
+    }
+  }
+};
+
+/**
+ * Create the main trust score display with a visual gauge.
+ */
+const createTrustScoreDisplay = (score, autonomous) => {
+  const percentage = Math.round(score * 100);
+  const level = score >= 0.7 ? 'high' : score >= 0.4 ? 'medium' : 'low';
+
+  return div({ className: 'trust-score-display' }, [
+    div({ className: 'trust-score-header' }, [
+      span({ className: 'trust-score-label' }, 'Trust Score'),
+      span({ className: `trust-score-value trust-${level}` }, `${percentage}%`)
+    ]),
+    div({ className: 'trust-score-bar' }, [
+      div({
+        className: `trust-score-fill trust-${level}`,
+        style: { width: `${percentage}%` }
+      })
+    ]),
+    div({ className: 'trust-score-status' }, [
+      autonomous
+        ? span({ className: 'badge badge-assistant' }, 'Autonomous')
+        : span({ className: 'badge badge-user' }, 'Steered'),
+      span({ className: 'trust-level-text' }, getTrustLevelText(level))
+    ])
+  ]);
+};
+
+const getTrustLevelText = (level) => {
+  const texts = {
+    high: 'High confidence - ran smoothly',
+    medium: 'Moderate - some steering needed',
+    low: 'Low confidence - significant intervention'
+  };
+  return texts[level] || '';
+};
+
+const createTrustMetric = (label, value) => {
+  return div({ className: 'trust-metric' }, [
+    span({ className: 'trust-metric-label' }, label),
+    span({ className: 'trust-metric-value' }, value)
+  ]);
 };

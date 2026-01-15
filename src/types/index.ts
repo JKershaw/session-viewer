@@ -122,3 +122,6 @@ export interface TimelineResult {
   earliestTime: string | null;
   latestTime: string | null;
 }
+
+// Re-export trust types
+export * from './trust.js';
