@@ -99,6 +99,16 @@ const closePanel = () => {
   setSelectedSession(null);
 };
 
+const getTicketDisplay = (ticketId) => {
+  if (!ticketId) return '-';
+  const { filterOptions } = store.getState();
+  const ticket = filterOptions.tickets.find(t => t.ticketId === ticketId);
+  if (ticket?.title) {
+    return `${ticketId}: ${ticket.title}`;
+  }
+  return ticketId;
+};
+
 const renderContent = (session) => {
   clearChildren(contentEl);
 
@@ -106,7 +116,7 @@ const renderContent = (session) => {
   const metadata = div({ className: 'panel-metadata' }, [
     createMetadataItem('Folder', getFolderName(session.folder), true, true),
     createMetadataItem('Branch', session.branch || '-'),
-    createMetadataItem('Ticket', session.linearTicketId || '-'),
+    createMetadataItem('Ticket', getTicketDisplay(session.linearTicketId), true),
     createMetadataItem('Start', formatDate(session.startTime)),
     createMetadataItem('End', formatDate(session.endTime)),
     createMetadataItem('Duration', formatDuration(session.durationMs)),
