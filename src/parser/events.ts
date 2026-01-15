@@ -29,6 +29,21 @@ export const classifyEntry = (entry: LogEntry): EventType | null => {
     return 'tool_call';
   }
 
+  // Check if message content contains tool results (these come as role=user but aren't real user messages)
+  const content = entry.message?.content;
+  if (Array.isArray(content)) {
+    const hasToolResult = content.some(
+      (item) => typeof item === 'object' && item !== null && (item as Record<string, unknown>).type === 'tool_result'
+    );
+    if (hasToolResult) {
+      // Check if it's a git operation
+      if (isGitOperation(entry)) {
+        return 'git_op';
+      }
+      return 'tool_call';
+    }
+  }
+
   // Check for messages by role
   if (role === 'user') {
     return 'user_message';
