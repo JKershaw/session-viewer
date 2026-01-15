@@ -33,6 +33,41 @@ interface LinearGraphQLResponse {
 const DEFAULT_BASE_URL = 'https://api.linear.app/graphql';
 
 /**
+ * Extract ticket type from labels.
+ * Looks for common type indicators like bug, feature, enhancement, etc.
+ */
+export const extractTicketType = (labels: string[]): string => {
+  const lowerLabels = labels.map(l => l.toLowerCase());
+
+  // Priority order for type detection
+  const typePatterns: [RegExp, string][] = [
+    [/^bug$/i, 'bug'],
+    [/^bugfix$/i, 'bug'],
+    [/^fix$/i, 'bug'],
+    [/^feature$/i, 'feature'],
+    [/^enhancement$/i, 'enhancement'],
+    [/^improvement$/i, 'enhancement'],
+    [/^task$/i, 'task'],
+    [/^chore$/i, 'chore'],
+    [/^refactor$/i, 'refactor'],
+    [/^docs?$/i, 'docs'],
+    [/^documentation$/i, 'docs'],
+    [/^test$/i, 'test'],
+    [/^testing$/i, 'test'],
+  ];
+
+  for (const label of lowerLabels) {
+    for (const [pattern, type] of typePatterns) {
+      if (pattern.test(label)) {
+        return type;
+      }
+    }
+  }
+
+  return 'issue'; // Default fallback
+};
+
+/**
  * Creates a Linear API client
  */
 export const createLinearClient = (config: LinearConfig) => {
@@ -42,7 +77,7 @@ export const createLinearClient = (config: LinearConfig) => {
     const response = await fetch(baseUrl, {
       method: 'POST',
       headers: {
-        'Authorization': apiKey,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ query: gql, variables })
@@ -114,7 +149,7 @@ export const createLinearClient = (config: LinearConfig) => {
     return issues.map((issue) => ({
       ticketId: issue.identifier,
       title: issue.title,
-      type: 'issue',
+      type: extractTicketType(issue.labels.nodes.map((l) => l.name)),
       labels: issue.labels.nodes.map((l) => l.name),
       status: issue.state.name,
       project: issue.project?.name ?? '',

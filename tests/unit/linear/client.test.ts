@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import {
   extractTicketFromBranch,
+  extractTicketType,
   matchSessionsToTickets,
   linkSessionsToTickets
 } from '../../../src/linear/client.js';
@@ -45,6 +46,48 @@ describe('Linear Client', () => {
     it('handles various team prefixes', () => {
       assert.strictEqual(extractTicketFromBranch('AB-1'), 'AB-1');
       assert.strictEqual(extractTicketFromBranch('LONGTEAM-999'), 'LONGTEAM-999');
+    });
+  });
+
+  describe('extractTicketType', () => {
+    it('extracts bug type from labels', () => {
+      assert.strictEqual(extractTicketType(['bug']), 'bug');
+      assert.strictEqual(extractTicketType(['Bug']), 'bug');
+      assert.strictEqual(extractTicketType(['BUG']), 'bug');
+      assert.strictEqual(extractTicketType(['bugfix']), 'bug');
+      assert.strictEqual(extractTicketType(['fix']), 'bug');
+    });
+
+    it('extracts feature type from labels', () => {
+      assert.strictEqual(extractTicketType(['feature']), 'feature');
+      assert.strictEqual(extractTicketType(['Feature']), 'feature');
+    });
+
+    it('extracts enhancement type from labels', () => {
+      assert.strictEqual(extractTicketType(['enhancement']), 'enhancement');
+      assert.strictEqual(extractTicketType(['improvement']), 'enhancement');
+    });
+
+    it('extracts other common types', () => {
+      assert.strictEqual(extractTicketType(['task']), 'task');
+      assert.strictEqual(extractTicketType(['chore']), 'chore');
+      assert.strictEqual(extractTicketType(['refactor']), 'refactor');
+      assert.strictEqual(extractTicketType(['docs']), 'docs');
+      assert.strictEqual(extractTicketType(['documentation']), 'docs');
+      assert.strictEqual(extractTicketType(['test']), 'test');
+      assert.strictEqual(extractTicketType(['testing']), 'test');
+    });
+
+    it('returns first matching type when multiple labels present', () => {
+      // First matching label in the list wins
+      assert.strictEqual(extractTicketType(['feature', 'bug']), 'feature');
+      assert.strictEqual(extractTicketType(['bug', 'feature']), 'bug');
+    });
+
+    it('returns issue as default when no type labels found', () => {
+      assert.strictEqual(extractTicketType([]), 'issue');
+      assert.strictEqual(extractTicketType(['priority-high']), 'issue');
+      assert.strictEqual(extractTicketType(['backend', 'api']), 'issue');
     });
   });
 

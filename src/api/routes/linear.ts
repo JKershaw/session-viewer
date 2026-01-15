@@ -42,10 +42,13 @@ export const createLinearRoutes = (config: LinearRoutesConfig): Router => {
       const sessions = await sessionRepo.getAllSessions();
       const linkedSessions = linkSessionsToTickets(sessions, tickets);
 
-      // Update sessions with ticket links
-      for (const session of linkedSessions) {
-        if (session.linearTicketId) {
-          await sessionRepo.upsertSession(session);
+      // Update sessions with ticket links (including clearing stale links)
+      for (let i = 0; i < linkedSessions.length; i++) {
+        const linkedSession = linkedSessions[i];
+        const originalSession = sessions[i];
+        // Update if ticket link changed (added, removed, or changed)
+        if (linkedSession.linearTicketId !== originalSession.linearTicketId) {
+          await sessionRepo.upsertSession(linkedSession);
         }
       }
 
@@ -65,7 +68,8 @@ export const createLinearRoutes = (config: LinearRoutesConfig): Router => {
       });
     } catch (error) {
       console.error('Linear sync error:', error);
-      res.status(500).json({ error: 'Failed to sync with Linear' });
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      res.status(500).json({ error: `Failed to sync with Linear: ${message}` });
     }
   });
 
