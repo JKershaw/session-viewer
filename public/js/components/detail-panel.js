@@ -1,7 +1,7 @@
 /**
  * Detail panel component for showing session details.
  */
-import { store, setSelectedSession } from '../state/store.js';
+import { store, setSelectedSession, setView, setFilters } from '../state/store.js';
 import { api } from '../api/client.js';
 import { div, button, span, clearChildren } from '../utils/dom.js';
 import {
@@ -345,7 +345,7 @@ const loadTrustMetrics = async (sessionId) => {
     // Build trust display
     const trustContent = div({ className: 'trust-content' }, [
       // Trust score with visual indicator
-      createTrustScoreDisplay(trust.trustScore, trust.autonomous),
+      createTrustScoreDisplay(trust.trustScore, trust.autonomous, trust.characteristics?.codebaseArea),
 
       // Steering metrics
       div({ className: 'trust-group' }, [
@@ -396,9 +396,18 @@ const loadTrustMetrics = async (sessionId) => {
 /**
  * Create the main trust score display with a visual gauge.
  */
-const createTrustScoreDisplay = (score, autonomous) => {
+const createTrustScoreDisplay = (score, autonomous, codebaseArea) => {
   const percentage = Math.round(score * 100);
   const level = score >= 0.7 ? 'high' : score >= 0.4 ? 'medium' : 'low';
+
+  const handleViewInDashboard = () => {
+    // If we have a codebase area, filter to it
+    if (codebaseArea) {
+      setFilters({ folder: codebaseArea });
+    }
+    setView('trust-dashboard');
+    setSelectedSession(null);
+  };
 
   return div({ className: 'trust-score-display' }, [
     div({ className: 'trust-score-header' }, [
@@ -416,6 +425,12 @@ const createTrustScoreDisplay = (score, autonomous) => {
         ? span({ className: 'badge badge-assistant' }, 'Autonomous')
         : span({ className: 'badge badge-user' }, 'Steered'),
       span({ className: 'trust-level-text' }, getTrustLevelText(level))
+    ]),
+    div({ className: 'trust-score-actions' }, [
+      button({
+        className: 'btn btn-link',
+        onClick: handleViewInDashboard
+      }, 'View in Dashboard →')
     ])
   ]);
 };
