@@ -112,7 +112,10 @@ export const initFilters = (container) => {
       onChange: (e) => handleFilterChange('ticket', e.target.value)
     }, [
       option({ value: '' }, 'All Tickets'),
-      ...filterOptions.tickets.map(t => option({ value: t.ticketId }, t.ticketId))
+      ...filterOptions.tickets.map(t => option(
+        { value: t.ticketId },
+        t.title ? `${t.ticketId}: ${t.title.slice(0, 40)}${t.title.length > 40 ? '...' : ''}` : t.ticketId
+      ))
     ]);
     const ticketGroup = div({ className: 'filter-group' }, [
       label({}, 'Ticket'),

@@ -16,15 +16,21 @@ interface LinearIssue {
   branchName?: string;
 }
 
+interface PageInfo {
+  hasNextPage: boolean;
+  endCursor: string | null;
+}
+
+interface IssuesConnection {
+  nodes: LinearIssue[];
+  pageInfo: PageInfo;
+}
+
 interface LinearGraphQLResponse {
   data?: {
-    issues?: {
-      nodes: LinearIssue[];
-    };
+    issues?: IssuesConnection;
     team?: {
-      issues?: {
-        nodes: LinearIssue[];
-      };
+      issues?: IssuesConnection;
     };
   };
   errors?: Array<{ message: string }>;
@@ -97,16 +103,19 @@ export const createLinearClient = (config: LinearConfig) => {
   };
 
   /**
-   * Fetches recent issues from Linear
+   * Fetches issues from Linear with pagination support.
+   * @param options.limit - Max issues per page (default 100, max 250)
+   * @param options.maxPages - Max pages to fetch (default 10, set to 0 for unlimited)
    */
-  const getIssues = async (options: { limit?: number } = {}): Promise<LinearTicket[]> => {
-    const { limit = 100 } = options;
+  const getIssues = async (options: { limit?: number; maxPages?: number } = {}): Promise<LinearTicket[]> => {
+    const { limit = 100, maxPages = 10 } = options;
+    const pageSize = Math.min(limit, 250); // Linear max is 250 per request
 
     const gql = teamId
       ? `
-        query GetTeamIssues($teamId: String!, $first: Int!) {
+        query GetTeamIssues($teamId: String!, $first: Int!, $after: String) {
           team(id: $teamId) {
-            issues(first: $first, orderBy: updatedAt) {
+            issues(first: $first, after: $after, orderBy: updatedAt) {
               nodes {
                 id
                 identifier
@@ -116,13 +125,17 @@ export const createLinearClient = (config: LinearConfig) => {
                 project { name }
                 branchName
               }
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
             }
           }
         }
       `
       : `
-        query GetIssues($first: Int!) {
-          issues(first: $first, orderBy: updatedAt) {
+        query GetIssues($first: Int!, $after: String) {
+          issues(first: $first, after: $after, orderBy: updatedAt) {
             nodes {
               id
               identifier
@@ -132,21 +145,44 @@ export const createLinearClient = (config: LinearConfig) => {
               project { name }
               branchName
             }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
           }
         }
       `;
 
-    const data = await query<{
-      issues?: { nodes: LinearIssue[] };
-      team?: { issues?: { nodes: LinearIssue[] } };
-    }>(gql, { teamId, first: limit });
+    type IssuesQueryResult = {
+      issues?: IssuesConnection;
+      team?: { issues?: IssuesConnection };
+    };
 
-    const issues = teamId ? data.team?.issues?.nodes : data.issues?.nodes;
-    if (!issues) {
-      return [];
+    const allIssues: LinearIssue[] = [];
+    let cursor: string | null = null;
+    let pageCount = 0;
+
+    // Fetch pages until no more or limit reached
+    while (maxPages === 0 || pageCount < maxPages) {
+      const data: IssuesQueryResult = await query<IssuesQueryResult>(gql, { teamId, first: pageSize, after: cursor });
+
+      const connection: IssuesConnection | undefined = teamId ? data.team?.issues : data.issues;
+      if (!connection?.nodes?.length) {
+        break;
+      }
+
+      allIssues.push(...connection.nodes);
+      pageCount++;
+
+      // Check if there are more pages
+      if (!connection.pageInfo.hasNextPage || !connection.pageInfo.endCursor) {
+        break;
+      }
+
+      cursor = connection.pageInfo.endCursor;
     }
 
-    return issues.map((issue) => ({
+    return allIssues.map((issue) => ({
       ticketId: issue.identifier,
       title: issue.title,
       type: extractTicketType(issue.labels.nodes.map((l) => l.name)),

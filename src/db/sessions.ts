@@ -160,6 +160,7 @@ export interface SessionRepository {
   upsertSessions: (sessions: Session[]) => Promise<number>;
   getSession: (id: string) => Promise<Session | null>;
   getAllSessions: () => Promise<Session[]>;
+  getAllSessionsRaw: () => Promise<Session[]>;  // Returns unmerged sessions
   getSessions: (options: SessionQueryOptions) => Promise<PaginatedResult<Session>>;
   getSessionsForTimeline: (options: TimelineQueryOptions) => Promise<TimelineResult>;
   deleteSession: (id: string) => Promise<void>;
@@ -241,6 +242,10 @@ export const createSessionRepository = async (
   const getAllSessions = async (): Promise<Session[]> => {
     const rawSessions = await collection.find({}).toArray();
     return mergeSessions(rawSessions);
+  };
+
+  const getAllSessionsRaw = async (): Promise<Session[]> => {
+    return await collection.find({}).toArray();
   };
 
   const getSessions = async (
@@ -342,6 +347,7 @@ export const createSessionRepository = async (
     upsertSessions,
     getSession,
     getAllSessions,
+    getAllSessionsRaw,
     getSessions,
     getSessionsForTimeline,
     deleteSession

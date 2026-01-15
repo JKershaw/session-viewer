@@ -33,23 +33,39 @@ export const createLinearRoutes = (config: LinearRoutesConfig): Router => {
       const client = createLinearClient(linearConfig);
       const tickets = await client.getIssues({ limit: 100 });
 
-      // Store tickets
+      // Get existing tickets to detect deleted ones
+      const existingTickets = await ticketRepo.getAllTickets();
+      const newTicketIds = new Set(tickets.map(t => t.ticketId));
+      const deletedTickets = existingTickets.filter(t => !newTicketIds.has(t.ticketId));
+
+      // Store new/updated tickets
       for (const ticket of tickets) {
         await ticketRepo.upsertTicket(ticket);
       }
 
-      // Link sessions to tickets
-      const sessions = await sessionRepo.getAllSessions();
+      // Remove deleted tickets
+      for (const ticket of deletedTickets) {
+        await ticketRepo.deleteTicket(ticket.ticketId);
+      }
+
+      // Link sessions to tickets (use raw sessions to update individual DB records)
+      const sessions = await sessionRepo.getAllSessionsRaw();
       const linkedSessions = linkSessionsToTickets(sessions, tickets);
 
       // Update sessions with ticket links (including clearing stale links)
+      const sessionsToUpdate: typeof linkedSessions = [];
       for (let i = 0; i < linkedSessions.length; i++) {
         const linkedSession = linkedSessions[i];
         const originalSession = sessions[i];
         // Update if ticket link changed (added, removed, or changed)
         if (linkedSession.linearTicketId !== originalSession.linearTicketId) {
-          await sessionRepo.upsertSession(linkedSession);
+          sessionsToUpdate.push(linkedSession);
         }
+      }
+
+      // Batch update for efficiency
+      if (sessionsToUpdate.length > 0) {
+        await sessionRepo.upsertSessions(sessionsToUpdate);
       }
 
       // Update tickets with session IDs
@@ -64,7 +80,8 @@ export const createLinearRoutes = (config: LinearRoutesConfig): Router => {
       res.json({
         message: `Synced ${tickets.length} tickets`,
         ticketCount: tickets.length,
-        linkedSessions: linkedSessions.filter((s) => s.linearTicketId).length
+        linkedSessions: linkedSessions.filter((s) => s.linearTicketId).length,
+        deletedTickets: deletedTickets.length
       });
     } catch (error) {
       console.error('Linear sync error:', error);
