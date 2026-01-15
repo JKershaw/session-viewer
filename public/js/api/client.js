@@ -134,5 +134,49 @@ export const api = {
       method: 'POST'
     });
     return handleResponse(response);
+  },
+
+  // Trust Analysis API
+
+  /**
+   * Get trust analysis for a session.
+   */
+  async getSessionTrust(sessionId) {
+    const response = await fetch(`${BASE_URL}/trust/session/${sessionId}`);
+    return handleResponse(response);
+  },
+
+  /**
+   * Get the current trust map.
+   */
+  async getTrustMap() {
+    const response = await fetch(`${BASE_URL}/trust/map`);
+    return handleResponse(response);
+  },
+
+  /**
+   * Compute/recompute the trust map.
+   */
+  async computeTrustMap() {
+    const response = await fetch(`${BASE_URL}/trust/compute`, {
+      method: 'POST'
+    });
+    return handleResponse(response);
+  },
+
+  /**
+   * Get trust insights.
+   */
+  async getTrustInsights() {
+    const response = await fetch(`${BASE_URL}/trust/insights`);
+    return handleResponse(response);
+  },
+
+  /**
+   * Get trust by codebase area.
+   */
+  async getTrustByArea() {
+    const response = await fetch(`${BASE_URL}/trust/areas`);
+    return handleResponse(response);
   }
 };

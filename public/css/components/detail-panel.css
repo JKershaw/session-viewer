@@ -207,3 +207,127 @@
   padding: 10px;
   text-align: center;
 }
+
+/* Trust Metrics Section */
+.trust-loading {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.trust-loading.trust-error {
+  color: var(--color-error);
+}
+
+.trust-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Trust Score Display */
+.trust-score-display {
+  background: var(--color-bg-tertiary);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.trust-score-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.trust-score-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.trust-score-value {
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.trust-score-value.trust-high {
+  color: var(--color-success);
+}
+
+.trust-score-value.trust-medium {
+  color: var(--color-warning);
+}
+
+.trust-score-value.trust-low {
+  color: var(--color-error);
+}
+
+.trust-score-bar {
+  height: 6px;
+  background: var(--color-bg-primary);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.trust-score-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.trust-score-fill.trust-high {
+  background: var(--color-success);
+}
+
+.trust-score-fill.trust-medium {
+  background: var(--color-warning);
+}
+
+.trust-score-fill.trust-low {
+  background: var(--color-error);
+}
+
+.trust-score-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trust-level-text {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+/* Trust Groups */
+.trust-group {
+  background: var(--color-bg-tertiary);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.trust-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.trust-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.trust-metric-label {
+  color: var(--color-text-secondary);
+}
+
+.trust-metric-value {
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+}

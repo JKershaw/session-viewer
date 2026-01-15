@@ -2,6 +2,7 @@ import express, { type Express, type Request, type Response } from 'express';
 import { join } from 'node:path';
 import type { SessionRepository } from '../db/sessions.js';
 import type { TicketRepository } from '../db/tickets.js';
+import type { TrustRepository } from '../db/trust.js';
 import type { JobQueue } from '../queue/jobs.js';
 import type { ScanConfig } from '../parser/scanner.js';
 import { createSessionRoutes } from './routes/sessions.js';
@@ -9,6 +10,7 @@ import { createJobRoutes } from './routes/jobs.js';
 import { createTicketRoutes } from './routes/tickets.js';
 import { createLinearRoutes } from './routes/linear.js';
 import { createRefreshRoutes } from './routes/refresh.js';
+import { createTrustRoutes } from './routes/trust.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 export interface AppConfig extends ScanConfig {
@@ -18,6 +20,7 @@ export interface AppConfig extends ScanConfig {
 export interface AppRepositories {
   sessions: SessionRepository;
   tickets?: TicketRepository;
+  trust?: TrustRepository;
 }
 
 export const createApp = (
@@ -52,6 +55,15 @@ export const createApp = (
     sessionRepo: repos.sessions,
     scanConfig: config
   }));
+
+  // Trust analysis routes (only if trust repo available)
+  if (repos.trust) {
+    app.use('/api/trust', createTrustRoutes({
+      sessionRepo: repos.sessions,
+      trustRepo: repos.trust,
+      ticketRepo: repos.tickets
+    }));
+  }
 
   // Error handler
   app.use(errorHandler);
