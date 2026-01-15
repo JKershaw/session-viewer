@@ -65,7 +65,21 @@ export const store = createStore({
   // UI state
   loading: false,
   error: null,
-  detailPanelOpen: false
+  detailPanelOpen: false,
+
+  // View state for navigation
+  view: 'timeline', // 'timeline' | 'trust-dashboard'
+
+  // Trust analysis state
+  trust: {
+    map: null,           // TrustMap object from API
+    insights: [],        // Array of insight strings
+    areas: [],           // Trust by area data
+    prediction: null,    // Current prediction result
+    loading: false,
+    error: null,
+    lastComputed: null
+  }
 });
 
 // Convenience methods for common state updates
@@ -88,3 +102,31 @@ export const setFilterOptions = (options) => store.setState(state => ({
 export const setVisibleTimeRange = (start, end) => store.setState({
   visibleTimeRange: { start, end }
 });
+
+// View navigation
+export const setView = (view) => store.setState({ view });
+
+// Trust state convenience methods
+export const setTrustMap = (map) => store.setState(state => ({
+  trust: { ...state.trust, map, lastComputed: map?.computedAt || null }
+}));
+
+export const setTrustInsights = (insights) => store.setState(state => ({
+  trust: { ...state.trust, insights }
+}));
+
+export const setTrustAreas = (areas) => store.setState(state => ({
+  trust: { ...state.trust, areas }
+}));
+
+export const setTrustPrediction = (prediction) => store.setState(state => ({
+  trust: { ...state.trust, prediction }
+}));
+
+export const setTrustLoading = (loading) => store.setState(state => ({
+  trust: { ...state.trust, loading }
+}));
+
+export const setTrustError = (error) => store.setState(state => ({
+  trust: { ...state.trust, error }
+}));

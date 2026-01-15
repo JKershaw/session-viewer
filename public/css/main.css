@@ -1,8 +1,10 @@
 /* Main stylesheet - imports component styles */
 @import './components/header.css';
+@import './components/navigation.css';
 @import './components/filters.css';
 @import './components/timeline.css';
 @import './components/detail-panel.css';
+@import './components/trust-dashboard.css';
 @import './components/tooltip.css';
 
 /* CSS Variables */
