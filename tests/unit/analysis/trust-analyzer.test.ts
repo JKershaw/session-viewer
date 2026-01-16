@@ -217,6 +217,24 @@ describe('Trust Analyzer', () => {
       const characteristics = extractTaskCharacteristics(session);
       assert.strictEqual(characteristics.subtaskCount, 3);
     });
+
+    it('does not mutate the input ticketLabels array', () => {
+      const session = createSession({
+        events: [createEvent('user_message', '2024-01-01T10:00:00Z')],
+        ticketReferences: [
+          { ticketId: 'KUL-123', relationship: 'worked', sources: [] },
+          { ticketId: 'KUL-456', relationship: 'referenced', sources: [] }
+        ]
+      });
+      const originalLabels = ['label1', 'label2'];
+      const labelsCopy = [...originalLabels];
+
+      // Call the function with the labels array
+      extractTaskCharacteristics(session, 'bug', originalLabels);
+
+      // Verify the original array was not mutated
+      assert.deepStrictEqual(originalLabels, labelsCopy, 'Original ticketLabels array should not be mutated');
+    });
   });
 
   describe('extractOutcomeMetrics', () => {

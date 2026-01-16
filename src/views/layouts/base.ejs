@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+  <div class="app">
+    <%- include('../partials/header', { view }) %>
+
+    <%- include('../partials/nav', { view }) %>
+
+    <%- include('../partials/filters', { view, filters, filterOptions }) %>
+
+    <!-- View: Timeline -->
+    <main id="timeline" class="timeline view-content <%= view !== 'timeline' ? 'hidden' : '' %>">
+      <%- include('../partials/timeline', { sessions }) %>
+    </main>
+
+    <!-- View: Trust Dashboard -->
+    <main id="trust-dashboard" class="trust-dashboard view-content <%= view !== 'trust-dashboard' ? 'hidden' : '' %>">
+      <%- include('../partials/trust-dashboard', { trustMap }) %>
+    </main>
+
+    <aside id="detail-panel" class="detail-panel"></aside>
+
+    <div id="tooltip" class="tooltip hidden"></div>
+
+    <div id="notifications"></div>
+
+    <%- include('../partials/footer') %>
+  </div>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

@@ -19,10 +19,14 @@
 
 /* Dashboard container */
 .trust-dashboard {
+  flex: 1;
+  display: block;
   padding: 24px;
   overflow-y: auto;
   max-height: calc(100vh - var(--header-height) - 100px);
   padding-bottom: 80px;
+  width: 100%;
+  min-width: 0; /* Prevent flex item from overflowing */
 }
 
 .trust-dashboard.hidden {
@@ -173,6 +177,7 @@
   height: 100%;
   transition: width 0.3s ease;
   border-radius: 2px;
+  background: var(--color-text-muted); /* Default fallback if no trust class */
 }
 
 .stat-card-subtext {
@@ -186,6 +191,10 @@
   grid-template-columns: 1.5fr 1fr;
   gap: 24px;
   margin-bottom: 24px;
+}
+
+.trust-content-grid > * {
+  min-width: 0; /* Prevent grid children from overflowing */
 }
 
 @media (max-width: 1024px) {
@@ -440,7 +449,7 @@
 
 .table-header {
   display: grid;
-  grid-template-columns: 1.5fr 0.7fr 1fr 1fr 0.7fr 0.7fr 1fr;
+  grid-template-columns: 1.5fr 0.7fr 1fr 1fr 0.7fr 0.7fr minmax(90px, 1fr);
   gap: 8px;
   padding: 8px 12px;
   background: var(--color-bg-tertiary);
@@ -482,7 +491,7 @@
 
 .table-row {
   display: grid;
-  grid-template-columns: 1.5fr 0.7fr 1fr 1fr 0.7fr 0.7fr 1fr;
+  grid-template-columns: 1.5fr 0.7fr 1fr 1fr 0.7fr 0.7fr minmax(90px, 1fr);
   gap: 8px;
   padding: 8px 12px;
   border-radius: 4px;

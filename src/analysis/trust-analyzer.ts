@@ -88,6 +88,36 @@ const normalizeToArea = (path: string, projectRoot: string): string => {
 };
 
 /**
+ * Extract tool inputs from a raw log entry.
+ * Tool inputs can be at:
+ * - raw.input (direct tool_use entry)
+ * - raw.message.content[i].input (tool_use inside assistant message)
+ */
+const extractToolInputs = (raw: Record<string, unknown>): Record<string, unknown>[] => {
+  const inputs: Record<string, unknown>[] = [];
+
+  // Check direct input field
+  if (raw.input && typeof raw.input === 'object') {
+    inputs.push(raw.input as Record<string, unknown>);
+  }
+
+  // Check message.content array for tool_use items
+  const message = raw.message as { content?: unknown } | undefined;
+  if (message?.content && Array.isArray(message.content)) {
+    for (const item of message.content) {
+      if (typeof item === 'object' && item !== null) {
+        const contentItem = item as Record<string, unknown>;
+        if (contentItem.type === 'tool_use' && contentItem.input && typeof contentItem.input === 'object') {
+          inputs.push(contentItem.input as Record<string, unknown>);
+        }
+      }
+    }
+  }
+
+  return inputs;
+};
+
+/**
  * Extract file paths from tool calls.
  */
 const extractFilePaths = (events: Event[]): string[] => {
@@ -96,27 +126,61 @@ const extractFilePaths = (events: Event[]): string[] => {
   for (const event of events) {
     if (event.type !== 'tool_call') continue;
 
-    const raw = event.raw;
-    const input = raw.input as Record<string, unknown> | undefined;
+    const raw = event.raw as Record<string, unknown>;
+    const inputs = extractToolInputs(raw);
 
-    // Common file path parameters
-    const fileFields = ['file_path', 'path', 'filePath', 'filename'];
-    for (const field of fileFields) {
-      if (input?.[field] && typeof input[field] === 'string') {
-        paths.add(input[field] as string);
+    for (const input of inputs) {
+      // Common file path parameters
+      const fileFields = ['file_path', 'path', 'filePath', 'filename'];
+      for (const field of fileFields) {
+        if (input[field] && typeof input[field] === 'string') {
+          paths.add(input[field] as string);
+        }
       }
-    }
 
-    // Glob patterns
-    if (input?.pattern && typeof input.pattern === 'string') {
-      // Extract directory from glob pattern
-      const pattern = input.pattern as string;
-      const dir = pattern.split('*')[0].replace(/\/$/, '');
-      if (dir) paths.add(dir);
+      // Glob patterns
+      if (input.pattern && typeof input.pattern === 'string') {
+        // Extract directory from glob pattern
+        const pattern = input.pattern as string;
+        const dir = pattern.split('*')[0].replace(/\/$/, '');
+        if (dir) paths.add(dir);
+      }
     }
   }
 
   return Array.from(paths);
+};
+
+/**
+ * Extract tool names from a raw log entry.
+ * Tool names can be at:
+ * - raw.tool_name or raw.name (direct tool_use entry)
+ * - raw.message.content[i].name (tool_use inside assistant message)
+ */
+const extractToolNames = (raw: Record<string, unknown>): string[] => {
+  const names: string[] = [];
+
+  // Check direct tool_name/name fields
+  if (raw.tool_name && typeof raw.tool_name === 'string') {
+    names.push(raw.tool_name);
+  } else if (raw.name && typeof raw.name === 'string') {
+    names.push(raw.name);
+  }
+
+  // Check message.content array for tool_use items
+  const message = raw.message as { content?: unknown } | undefined;
+  if (message?.content && Array.isArray(message.content)) {
+    for (const item of message.content) {
+      if (typeof item === 'object' && item !== null) {
+        const contentItem = item as Record<string, unknown>;
+        if (contentItem.type === 'tool_use' && contentItem.name && typeof contentItem.name === 'string') {
+          names.push(contentItem.name);
+        }
+      }
+    }
+  }
+
+  return names;
 };
 
 /**
@@ -127,9 +191,13 @@ const extractUniqueTools = (events: Event[]): string[] => {
 
   for (const event of events) {
     if (event.type === 'tool_call' || event.type === 'git_op') {
-      const raw = event.raw;
-      const toolName = (raw.tool_name ?? raw.name ?? 'unknown') as string;
-      tools.add(toolName);
+      const raw = event.raw as Record<string, unknown>;
+      const toolNames = extractToolNames(raw);
+      if (toolNames.length > 0) {
+        toolNames.forEach(name => tools.add(name));
+      } else {
+        tools.add('unknown');
+      }
     }
   }
 
@@ -193,6 +261,7 @@ const countSubtasks = (events: Event[]): number => {
 
 /**
  * Extract task characteristics from session.
+ * Uses session.ticketReferences if available to enrich ticket information.
  */
 export const extractTaskCharacteristics = (
   session: Session,
@@ -227,12 +296,32 @@ export const extractTaskCharacteristics = (
   // Extract file patterns (directories and extensions)
   const filePatterns = uniqueAreas.slice(0, 10);  // Top 10 areas
 
+  // Enrich ticket labels from ticket references if available
+  // Clone to avoid mutating the caller's array
+  const enrichedLabels = ticketLabels ? [...ticketLabels] : [];
+
+  // Add ticket relationship info to labels if we have rich ticket references
+  if (session.ticketReferences && session.ticketReferences.length > 0) {
+    const workedTickets = session.ticketReferences.filter(t => t.relationship === 'worked');
+    const referencedTickets = session.ticketReferences.filter(t => t.relationship === 'referenced');
+
+    if (workedTickets.length > 0 && !enrichedLabels.includes('has_worked_ticket')) {
+      enrichedLabels.push('has_worked_ticket');
+    }
+    if (referencedTickets.length > 0 && !enrichedLabels.includes('has_referenced_ticket')) {
+      enrichedLabels.push('has_referenced_ticket');
+    }
+    if (workedTickets.length > 1 && !enrichedLabels.includes('multi_ticket')) {
+      enrichedLabels.push('multi_ticket');
+    }
+  }
+
   return {
     codebaseArea,
     projectPath: session.folder,
     branchType: classifyBranchType(session.branch),
     ticketType: ticketType ?? null,
-    ticketLabels: ticketLabels ?? [],
+    ticketLabels: enrichedLabels,
     initialPromptTokens,
     subtaskCount,
     toolDiversity: tools.length,
@@ -242,22 +331,33 @@ export const extractTaskCharacteristics = (
 
 /**
  * Extract outcome metrics from session.
+ * Uses session.outcomes if available (new rich tracking), falls back to event parsing.
  */
 export const extractOutcomeMetrics = (session: Session): OutcomeMetrics => {
   const events = session.events;
   const annotations = session.annotations || [];
+  const outcomes = session.outcomes;
 
-  // Count git operations
-  const gitOps = events.filter(e => e.type === 'git_op');
-  let commitCount = 0;
-  let hasPush = false;
+  let commitCount: number;
+  let hasPush: boolean;
 
-  for (const gitEvent of gitOps) {
-    const details = extractGitDetails(gitEvent);
-    if (!details) continue;
+  // Use session.outcomes if available (from outcome-extractor)
+  if (outcomes) {
+    commitCount = outcomes.commits.length;
+    hasPush = outcomes.pushes.length > 0;
+  } else {
+    // Fall back to parsing git operations from events
+    const gitOps = events.filter(e => e.type === 'git_op');
+    commitCount = 0;
+    hasPush = false;
 
-    if (details.operation === 'commit') commitCount++;
-    if (details.operation === 'push') hasPush = true;
+    for (const gitEvent of gitOps) {
+      const details = extractGitDetails(gitEvent);
+      if (!details) continue;
+
+      if (details.operation === 'commit') commitCount++;
+      if (details.operation === 'push') hasPush = true;
+    }
   }
 
   // Count errors

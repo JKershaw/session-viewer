@@ -95,17 +95,38 @@ export const createTrustRoutes = (config: TrustRoutesConfig): Router => {
         ? req.params.id[0]
         : req.params.id;
 
+      // Always fetch session to check if recomputation is needed
+      const session = await sessionRepo.getSession(sessionId);
+      if (!session) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+
       // Check for cached analysis
       let analysis = await trustRepo.getSessionAnalysis(sessionId);
 
-      if (!analysis) {
-        // Compute on demand
-        const session = await sessionRepo.getSession(sessionId);
-        if (!session) {
-          res.status(404).json({ error: 'Session not found' });
-          return;
-        }
+      // Recompute if:
+      // 1. No cached analysis exists, OR
+      // 2. Session data has changed since cache was computed (stale cache)
+      //    Detect by comparing annotation counts and outcome counts
+      const sessionAnnotationCount = session.annotations?.length ?? 0;
+      const cachedAnnotationCount = analysis
+        ? (analysis.steering.goalShiftCount +
+           analysis.outcome.blockerCount +
+           analysis.outcome.reworkCount +
+           analysis.outcome.decisionCount)
+        : 0;
+      const annotationsStale = session.analyzed && sessionAnnotationCount > cachedAnnotationCount;
 
+      // Also check if outcomes have changed (e.g., after re-parsing with bug fixes)
+      const sessionCommitCount = session.outcomes?.commits?.length ?? 0;
+      const cachedCommitCount = analysis?.outcome.commitCount ?? 0;
+      const outcomesStale = sessionCommitCount !== cachedCommitCount;
+
+      const cacheIsStale = analysis && (annotationsStale || outcomesStale);
+
+      if (!analysis || cacheIsStale) {
+        // Compute on demand
         const ticket = session.linearTicketId && ticketRepo
           ? await ticketRepo.getTicket(session.linearTicketId)
           : null;

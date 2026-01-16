@@ -1,0 +1,42 @@
+<%# Trust dashboard shell - enhanced by client-side JS %>
+
+<div class="trust-header">
+  <h2 class="trust-header-title">Trust Analysis Dashboard</h2>
+  <button class="btn" id="btn-compute-trust">Compute Trust Map</button>
+</div>
+
+<div class="trust-content">
+  <% if (trustMap && trustMap.global) { %>
+    <%# Trust data exists - render stats %>
+    <div class="trust-stats-section">
+      <div class="trust-stats-grid">
+        <div class="stat-card">
+          <div class="stat-value"><%= trustMap.global.totalSessions %></div>
+          <div class="stat-label">Total Sessions</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value"><%= Math.round(trustMap.global.autonomousRate * 100) %>%</div>
+          <div class="stat-label">Autonomy Rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value"><%= trustMap.global.avgInterventionCount.toFixed(1) %></div>
+          <div class="stat-label">Avg Interventions</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value"><%= Math.round(trustMap.global.avgTrustScore * 100) %>%</div>
+          <div class="stat-label">Avg Trust Score</div>
+        </div>
+      </div>
+    </div>
+
+    <%# Category tabs and prediction form rendered by JS for interactivity %>
+    <div class="category-tabs"></div>
+    <div class="prediction-form"></div>
+    <div class="insights-panel"></div>
+  <% } else { %>
+    <div class="trust-empty">
+      <p>No trust analysis data available.</p>
+      <p>Click "Compute Trust Map" to analyze your sessions.</p>
+    </div>
+  <% } %>
+</div>

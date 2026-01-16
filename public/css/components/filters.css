@@ -1,11 +1,15 @@
 /* Filters component styles */
 #filters {
-  display: flex;
-  align-items: center;
-  gap: 16px;
   padding: 10px 20px;
   background: var(--color-bg-secondary);
   border-bottom: 1px solid var(--color-border);
+}
+
+/* Filter form - flex container for filter groups */
+.filter-form {
+  display: flex;
+  align-items: center;
+  gap: 16px;
   flex-wrap: wrap;
 }
 

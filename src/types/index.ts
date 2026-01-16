@@ -8,12 +8,71 @@ export type EventType =
 
 export type AnnotationType = 'decision' | 'blocker' | 'rework' | 'goal_shift';
 
+// Event tags for significant events
+export type EventTag =
+  | { type: 'commit'; message: string; ticketIds: string[] }
+  | { type: 'push'; branch: string; remote: string }
+  | { type: 'ticket_created'; ticketId: string; title?: string }
+  | { type: 'ticket_updated'; ticketId: string; changes: Record<string, string> }
+  | { type: 'ticket_completed'; ticketId: string }
+  | { type: 'ticket_read'; ticketId: string }
+  | { type: 'ticket_mentioned'; ticketId: string; context: string };
+
+// Ticket relationship type
+export type TicketRelationship = 'worked' | 'referenced';
+
+// Source type for ticket references
+export type TicketSourceType =
+  | 'branch'
+  | 'commit'
+  | 'mcp_create'
+  | 'mcp_update'
+  | 'mcp_complete'
+  | 'mcp_comment'
+  | 'mcp_read'
+  | 'mention';
+
+// Rich ticket reference
+export interface TicketReference {
+  ticketId: string;
+  relationship: TicketRelationship;
+  sources: Array<{
+    type: TicketSourceType;
+    eventIndex?: number;
+    timestamp: string;
+    context?: string;
+  }>;
+}
+
+// Session outcomes
+export interface SessionOutcomes {
+  commits: Array<{
+    message: string;
+    ticketIds: string[];
+    timestamp: string;
+    eventIndex: number;
+  }>;
+  pushes: Array<{
+    branch: string;
+    remote: string;
+    timestamp: string;
+    eventIndex: number;
+  }>;
+  ticketStateChanges: Array<{
+    ticketId: string;
+    newState: string;
+    timestamp: string;
+    eventIndex: number;
+  }>;
+}
+
 export interface Event {
   type: EventType;
   timestamp: string;
   tokenCount: number;
   raw: LogEntry;
   sourceSessionId?: string; // Set when events are merged from multiple sessions
+  tags?: EventTag[];        // Structured tags for significant events
 }
 
 export interface Annotation {
@@ -34,7 +93,9 @@ export interface Session {
   totalTokens: number;
   branch: string | null;
   folder: string;
-  linearTicketId: string | null;
+  linearTicketId: string | null;        // Keep as primary ticket (first worked)
+  ticketReferences?: TicketReference[]; // All ticket references
+  outcomes?: SessionOutcomes;           // Session outcomes (commits, pushes, state changes)
   analyzed: boolean;
   events: Event[];
   annotations: Annotation[];
@@ -84,6 +145,10 @@ export interface ParsedSession {
   entries: LogEntry[];
   totalTokens: number;
   events?: Event[]; // Optional - populated by streaming parser
+  // Rich ticket tracking (populated by streaming parser)
+  linearTicketId?: string | null;
+  ticketReferences?: TicketReference[];
+  outcomes?: SessionOutcomes;
   [key: string]: unknown;
 }
 

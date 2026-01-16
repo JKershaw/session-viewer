@@ -208,6 +208,20 @@
   text-align: center;
 }
 
+/* Analysis status */
+.analyzing-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.analyzing-status .spinner {
+  width: 16px;
+  height: 16px;
+}
+
 /* Trust Metrics Section */
 .trust-loading {
   font-size: 12px;
@@ -352,4 +366,81 @@
 .btn-link:hover {
   color: var(--color-accent-hover);
   text-decoration: underline;
+}
+
+/* Outcomes Section */
+.outcome-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 12px;
+}
+
+.outcome-icon {
+  color: var(--color-success);
+  font-weight: bold;
+}
+
+.outcome-label {
+  color: var(--color-text-secondary);
+}
+
+.outcome-value {
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.outcome-commit .outcome-value {
+  font-style: italic;
+}
+
+.outcome-push .outcome-value {
+  color: var(--color-accent);
+}
+
+.outcome-ticket .outcome-value {
+  font-weight: 600;
+}
+
+/* Ticket References Section */
+.ticket-ref {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--color-bg-tertiary);
+  border-radius: 4px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.ticket-ref-icon {
+  font-size: 14px;
+}
+
+.ticket-ref-id {
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--color-accent);
+}
+
+.ticket-ref-relation {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.ticket-ref-sources {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  margin-left: auto;
+}
+
+.ticket-ref-worked {
+  border-left: 3px solid var(--color-success);
+}
+
+.ticket-ref-referenced {
+  border-left: 3px solid var(--color-text-muted);
 }

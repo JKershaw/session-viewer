@@ -1,4 +1,4 @@
-import type { LinearTicket, Session } from '../types/index.js';
+import type { LinearTicket, Session, TicketReference } from '../types/index.js';
 
 export interface LinearConfig {
   apiKey: string;
@@ -83,7 +83,7 @@ export const createLinearClient = (config: LinearConfig) => {
     const response = await fetch(baseUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': apiKey,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ query: gql, variables })
@@ -250,26 +250,58 @@ export const matchSessionsToTickets = (
 };
 
 /**
- * Updates sessions with their linked ticket IDs
+ * Get the primary ticket ID from ticket references.
+ * Prioritizes "worked" tickets over "referenced" tickets.
+ */
+const getPrimaryTicketFromReferences = (ticketRefs: TicketReference[] | undefined): string | null => {
+  if (!ticketRefs || ticketRefs.length === 0) return null;
+
+  // First, look for a "worked" ticket
+  const workedTicket = ticketRefs.find(t => t.relationship === 'worked');
+  if (workedTicket) return workedTicket.ticketId;
+
+  // Fall back to first referenced ticket
+  return ticketRefs[0]?.ticketId ?? null;
+};
+
+/**
+ * Updates sessions with their linked ticket IDs.
+ * Uses ticket references if available, falls back to branch extraction.
+ * Only links to tickets that exist in Linear.
  */
 export const linkSessionsToTickets = (
   sessions: Session[],
   tickets: LinearTicket[]
 ): Session[] => {
-  const ticketByBranch = new Map<string, string>();
-
   // Create lookup by ticket ID (normalized)
+  const validTicketIds = new Set<string>();
   for (const ticket of tickets) {
-    ticketByBranch.set(ticket.ticketId.toUpperCase(), ticket.ticketId);
+    validTicketIds.add(ticket.ticketId.toUpperCase());
   }
 
   return sessions.map((session) => {
-    const ticketId = extractTicketFromBranch(session.branch);
-    const linkedTicketId = ticketId ? ticketByBranch.get(ticketId.toUpperCase()) ?? null : null;
+    // First, try to get ticket from ticketReferences (if populated)
+    let ticketId = getPrimaryTicketFromReferences(session.ticketReferences);
+
+    // Fall back to branch extraction if no ticket references
+    if (!ticketId) {
+      ticketId = extractTicketFromBranch(session.branch);
+    }
+
+    // Only link if ticket exists in Linear
+    const linkedTicketId = ticketId && validTicketIds.has(ticketId.toUpperCase())
+      ? ticketId.toUpperCase()
+      : null;
+
+    // Filter ticket references to only include valid Linear tickets
+    const filteredReferences = session.ticketReferences?.filter(
+      ref => validTicketIds.has(ref.ticketId.toUpperCase())
+    );
 
     return {
       ...session,
-      linearTicketId: linkedTicketId
+      linearTicketId: linkedTicketId,
+      ticketReferences: filteredReferences
     };
   });
 };

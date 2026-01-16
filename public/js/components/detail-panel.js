@@ -1,7 +1,7 @@
 /**
  * Detail panel component for showing session details.
  */
-import { store, setSelectedSession, setView, setFilters } from '../state/store.js';
+import { store, setSelectedSession, setView, setFilters, setError, setSuccess } from '../state/store.js';
 import { api } from '../api/client.js';
 import { div, button, span, clearChildren } from '../utils/dom.js';
 import {
@@ -19,6 +19,12 @@ let currentSessionId = null;
 let loadedEvents = [];
 let eventsOffset = 0;
 const EVENTS_PER_PAGE = 50;
+
+// Analysis polling state
+let analyzingSessionId = null;
+let pollIntervalId = null;
+const POLL_INTERVAL_MS = 2000;
+const MAX_POLL_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
 export const initDetailPanel = (container) => {
   panelEl = container;
@@ -95,6 +101,7 @@ const openPanel = async (session) => {
 };
 
 const closePanel = () => {
+  stopPolling();
   panelEl.classList.remove('open');
   setSelectedSession(null);
 };
@@ -131,15 +138,43 @@ const renderContent = (session) => {
 
   contentEl.appendChild(metadata);
 
+  // Outcomes section (if available)
+  if (session.outcomes && hasOutcomes(session.outcomes)) {
+    const outcomesSection = div({ className: 'panel-section' }, [
+      div({ className: 'panel-section-title' }, 'Outcomes'),
+      ...renderOutcomes(session.outcomes)
+    ]);
+    contentEl.appendChild(outcomesSection);
+  }
+
+  // Ticket References section (if available)
+  if (session.ticketReferences && session.ticketReferences.length > 0) {
+    const ticketsSection = div({ className: 'panel-section' }, [
+      div({ className: 'panel-section-title' }, 'Tickets'),
+      ...renderTicketReferences(session.ticketReferences)
+    ]);
+    contentEl.appendChild(ticketsSection);
+  }
+
   // Analysis status
+  let analysisContent;
+  if (session.analyzed) {
+    analysisContent = div({}, `Analyzed - ${session.annotations?.length || 0} annotations found`);
+  } else if (analyzingSessionId === session.id) {
+    analysisContent = div({ className: 'analyzing-status' }, [
+      div({ className: 'spinner' }),
+      span({}, 'Analyzing...')
+    ]);
+  } else {
+    analysisContent = button({
+      className: 'btn btn-primary',
+      onClick: () => handleAnalyze(session.id)
+    }, 'Analyze with AI');
+  }
+
   const analysisSection = div({ className: 'panel-section' }, [
     div({ className: 'panel-section-title' }, 'Analysis'),
-    session.analyzed
-      ? div({}, 'Session has been analyzed')
-      : button({
-          className: 'btn btn-primary',
-          onClick: () => handleAnalyze(session.id)
-        }, 'Analyze with AI')
+    analysisContent
   ]);
   contentEl.appendChild(analysisSection);
 
@@ -326,12 +361,82 @@ const loadMoreEvents = (session) => {
   }
 };
 
+/**
+ * Start polling for analysis job completion.
+ */
+const startPolling = (jobId, sessionId) => {
+  const startTime = Date.now();
+
+  pollIntervalId = setInterval(async () => {
+    // Stop if panel closed or viewing different session
+    if (currentSessionId !== sessionId) {
+      stopPolling();
+      return;
+    }
+
+    // Stop if exceeded max duration
+    if (Date.now() - startTime > MAX_POLL_DURATION_MS) {
+      stopPolling();
+      setError('Analysis timed out - check job status manually');
+      return;
+    }
+
+    try {
+      const job = await api.getJob(jobId);
+
+      if (job.status === 'completed') {
+        stopPolling();
+        setSuccess(`Analysis complete: ${job.result?.annotationCount || 0} annotations found`);
+        await refreshCurrentSession();
+      } else if (job.status === 'failed') {
+        stopPolling();
+        setError(job.error || 'Analysis failed');
+        analyzingSessionId = null;
+        const session = store.getState().selectedSession;
+        if (session) renderContent(session);
+      }
+      // If still pending/processing, continue polling
+    } catch (err) {
+      console.error('Failed to poll job status:', err);
+      // Continue polling on transient errors
+    }
+  }, POLL_INTERVAL_MS);
+};
+
+/**
+ * Stop polling for analysis job.
+ */
+const stopPolling = () => {
+  if (pollIntervalId) {
+    clearInterval(pollIntervalId);
+    pollIntervalId = null;
+  }
+  analyzingSessionId = null;
+};
+
+/**
+ * Refresh the current session data and re-render.
+ */
+const refreshCurrentSession = async () => {
+  if (!currentSessionId) return;
+  try {
+    const fullSession = await api.getSession(currentSessionId);
+    renderContent(fullSession);
+  } catch (err) {
+    console.error('Failed to refresh session:', err);
+  }
+};
+
 const handleAnalyze = async (sessionId) => {
   try {
-    await api.analyzeSession(sessionId);
-    // Could poll for job status here
+    const result = await api.analyzeSession(sessionId);
+    analyzingSessionId = sessionId;
+    const session = store.getState().selectedSession;
+    if (session) renderContent(session); // Re-render to show spinner
+    startPolling(result.jobId, sessionId);
   } catch (err) {
     console.error('Analysis failed:', err);
+    setError(err.message || 'Failed to start analysis');
   }
 };
 
@@ -459,4 +564,103 @@ const createTrustMetric = (label, value) => {
     span({ className: 'trust-metric-label' }, label),
     span({ className: 'trust-metric-value' }, value)
   ]);
+};
+
+/**
+ * Check if there are any outcomes to display.
+ */
+const hasOutcomes = (outcomes) => {
+  return (outcomes.commits && outcomes.commits.length > 0) ||
+         (outcomes.pushes && outcomes.pushes.length > 0) ||
+         (outcomes.ticketStateChanges && outcomes.ticketStateChanges.length > 0);
+};
+
+/**
+ * Render session outcomes.
+ */
+const renderOutcomes = (outcomes) => {
+  const items = [];
+
+  // Render commits
+  if (outcomes.commits && outcomes.commits.length > 0) {
+    for (const commit of outcomes.commits) {
+      items.push(
+        div({ className: 'outcome-item outcome-commit' }, [
+          span({ className: 'outcome-icon' }, '\u2713'),
+          span({ className: 'outcome-label' }, 'Committed:'),
+          span({ className: 'outcome-value' }, truncate(commit.message, 50))
+        ])
+      );
+    }
+  }
+
+  // Render pushes
+  if (outcomes.pushes && outcomes.pushes.length > 0) {
+    for (const push of outcomes.pushes) {
+      items.push(
+        div({ className: 'outcome-item outcome-push' }, [
+          span({ className: 'outcome-icon' }, '\u2713'),
+          span({ className: 'outcome-label' }, 'Pushed to'),
+          span({ className: 'outcome-value' }, `${push.remote}/${push.branch}`)
+        ])
+      );
+    }
+  }
+
+  // Render ticket completions
+  if (outcomes.ticketStateChanges && outcomes.ticketStateChanges.length > 0) {
+    for (const change of outcomes.ticketStateChanges) {
+      const label = change.newState.toLowerCase().includes('done') ||
+                    change.newState.toLowerCase().includes('complete')
+        ? 'Completed:'
+        : `Changed to ${change.newState}:`;
+      items.push(
+        div({ className: 'outcome-item outcome-ticket' }, [
+          span({ className: 'outcome-icon' }, '\u2713'),
+          span({ className: 'outcome-label' }, label),
+          span({ className: 'outcome-value' }, change.ticketId)
+        ])
+      );
+    }
+  }
+
+  return items;
+};
+
+/**
+ * Get display text for ticket source types.
+ */
+const getSourceTypeDisplay = (sourceType) => {
+  const displays = {
+    branch: 'branch',
+    commit: 'commit',
+    mcp_create: 'created',
+    mcp_update: 'updated',
+    mcp_complete: 'completed',
+    mcp_comment: 'commented',
+    mcp_read: 'read',
+    mention: 'mentioned'
+  };
+  return displays[sourceType] || sourceType;
+};
+
+/**
+ * Render ticket references.
+ */
+const renderTicketReferences = (ticketRefs) => {
+  return ticketRefs.map(ref => {
+    const icon = ref.relationship === 'worked' ? '\uD83C\uDFAF' : '\uD83D\uDCD6';
+    const relationLabel = ref.relationship === 'worked' ? 'worked' : 'referenced';
+
+    // Summarize sources
+    const sourceTypes = [...new Set(ref.sources.map(s => getSourceTypeDisplay(s.type)))];
+    const sourceSummary = sourceTypes.join(', ');
+
+    return div({ className: `ticket-ref ticket-ref-${ref.relationship}` }, [
+      span({ className: 'ticket-ref-icon' }, icon),
+      span({ className: 'ticket-ref-id' }, ref.ticketId),
+      span({ className: 'ticket-ref-relation' }, `(${relationLabel})`),
+      span({ className: 'ticket-ref-sources' }, `- ${sourceSummary}`)
+    ]);
+  });
 };

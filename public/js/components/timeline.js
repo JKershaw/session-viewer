@@ -151,18 +151,32 @@ const getPositionForTime = (time) => {
 };
 
 export const initTimeline = (container) => {
-  // Create structure
-  const axis = div({ className: 'timeline-axis' }, [
-    div({ className: 'timeline-axis-content', id: 'timeline-axis-content' })
-  ]);
+  // Check for existing server-rendered structure (EJS)
+  let axis = container.querySelector('.timeline-axis');
+  timelineArea = container.querySelector('.timeline-area');
+  contentContainer = container.querySelector('.timeline-content');
 
-  timelineArea = div({ className: 'timeline-area' });
-  contentContainer = div({ className: 'timeline-content' });
+  // Create structure only if not already rendered by server
+  if (!axis) {
+    axis = div({ className: 'timeline-axis' }, [
+      div({ className: 'timeline-axis-content', id: 'timeline-axis-content' })
+    ]);
+    container.appendChild(axis);
+  } else if (!axis.querySelector('.timeline-axis-content')) {
+    // Axis exists but needs inner content element
+    const axisInner = div({ className: 'timeline-axis-content', id: 'timeline-axis-content' });
+    axis.appendChild(axisInner);
+  }
 
-  timelineArea.appendChild(contentContainer);
+  if (!timelineArea) {
+    timelineArea = div({ className: 'timeline-area' });
+    container.appendChild(timelineArea);
+  }
 
-  container.appendChild(axis);
-  container.appendChild(timelineArea);
+  if (!contentContainer) {
+    contentContainer = div({ className: 'timeline-content' });
+    timelineArea.appendChild(contentContainer);
+  }
 
   axisContent = document.getElementById('timeline-axis-content');
 
@@ -852,13 +866,38 @@ const handleBarHover = (event, session) => {
     });
   }
 
+  // Build rows including ticket info if available
+  const rows = [
+    { label: 'Duration', value: formatDuration(session.durationMs) },
+    { label: 'Tokens', value: formatTokens(session.totalTokens) },
+    { label: 'Events', value: String(session.events?.length || session.eventCount || 0) }
+  ];
+
+  // Add ticket info if available
+  if (session.linearTicketId) {
+    rows.push({ label: 'Ticket', value: session.linearTicketId });
+  }
+
+  // Add outcome summary if available
+  if (session.outcomes) {
+    const outcomeItems = [];
+    if (session.outcomes.commits?.length > 0) {
+      outcomeItems.push(`${session.outcomes.commits.length} commit${session.outcomes.commits.length > 1 ? 's' : ''}`);
+    }
+    if (session.outcomes.pushes?.length > 0) {
+      outcomeItems.push('pushed');
+    }
+    if (session.outcomes.ticketStateChanges?.length > 0) {
+      outcomeItems.push(`${session.outcomes.ticketStateChanges.length} ticket update${session.outcomes.ticketStateChanges.length > 1 ? 's' : ''}`);
+    }
+    if (outcomeItems.length > 0) {
+      rows.push({ label: 'Outcomes', value: outcomeItems.join(', ') });
+    }
+  }
+
   showTooltip(event.clientX, event.clientY, {
     title: getFolderName(session.folder),
-    rows: [
-      { label: 'Duration', value: formatDuration(session.durationMs) },
-      { label: 'Tokens', value: formatTokens(session.totalTokens) },
-      { label: 'Events', value: String(session.events?.length || session.eventCount || 0) }
-    ],
+    rows,
     events: eventCounts
   });
 };

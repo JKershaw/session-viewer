@@ -11,7 +11,19 @@ import { initTrustDashboard } from './components/trust-dashboard.js';
 import { initDetailPanel } from './components/detail-panel.js';
 import { initFooter } from './components/footer.js';
 import { initTooltip } from './components/tooltip.js';
+import { initNotifications } from './components/notifications.js';
 import { $ } from './utils/dom.js';
+
+/**
+ * Check if element has server-rendered content (EJS).
+ * Elements with content from EJS won't need JS initialization.
+ * Checks for child elements OR meaningful text content.
+ */
+const hasServerContent = (el) => {
+  if (!el) return false;
+  // Check for child elements or text content (excluding whitespace)
+  return el.children.length > 0 || (el.textContent?.trim().length ?? 0) > 0;
+};
 
 /**
  * Initialize the application.
@@ -20,7 +32,11 @@ const init = async () => {
   // Initialize tooltip (global)
   initTooltip();
 
-  // Initialize components
+  // Initialize notifications
+  const notificationsEl = $('notifications');
+  if (notificationsEl) initNotifications(notificationsEl);
+
+  // Get component containers
   const headerEl = $('header');
   const navigationEl = $('navigation');
   const filtersEl = $('filters');
@@ -29,13 +45,18 @@ const init = async () => {
   const detailPanelEl = $('detail-panel');
   const footerEl = $('footer');
 
+  // Initialize components
+  // Header always needs JS for button handlers (it re-renders itself)
   if (headerEl) initHeader(headerEl);
-  if (navigationEl) initNavigation(navigationEl);
-  if (filtersEl) initFilters(filtersEl);
+  // Nav, filters, footer: skip if EJS rendered them (they work without JS)
+  if (navigationEl && !hasServerContent(navigationEl)) initNavigation(navigationEl);
+  if (filtersEl && !hasServerContent(filtersEl)) initFilters(filtersEl);
+  if (footerEl && !hasServerContent(footerEl)) initFooter(footerEl);
+
+  // Timeline, detail panel, trust dashboard: always init (they need JS interactivity)
   if (timelineEl) initTimeline(timelineEl);
   if (trustDashboardEl) initTrustDashboard(trustDashboardEl);
   if (detailPanelEl) initDetailPanel(detailPanelEl);
-  if (footerEl) initFooter(footerEl);
 
   // Load initial filter options
   await loadFilterOptions();

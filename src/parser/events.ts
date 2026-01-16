@@ -1,4 +1,5 @@
-import type { Event, EventType, LogEntry } from '../types/index.js';
+import type { Event, EventType, LogEntry, EventTag } from '../types/index.js';
+import { extractEventTags as extractEventTagsFromOutcome } from './outcome-extractor.js';
 
 /**
  * Git command patterns to detect in bash tool calls
@@ -29,13 +30,17 @@ export const classifyEntry = (entry: LogEntry): EventType | null => {
     return 'tool_call';
   }
 
-  // Check if message content contains tool results (these come as role=user but aren't real user messages)
+  // Check if message content contains tool_use or tool_result
+  // tool_use: assistant messages with tool calls (name, input)
+  // tool_result: user messages with tool responses
   const content = entry.message?.content;
   if (Array.isArray(content)) {
-    const hasToolResult = content.some(
-      (item) => typeof item === 'object' && item !== null && (item as Record<string, unknown>).type === 'tool_result'
+    const hasToolContent = content.some(
+      (item) => typeof item === 'object' && item !== null &&
+        ((item as Record<string, unknown>).type === 'tool_result' ||
+         (item as Record<string, unknown>).type === 'tool_use')
     );
-    if (hasToolResult) {
+    if (hasToolContent) {
       // Check if it's a git operation
       if (isGitOperation(entry)) {
         return 'git_op';
@@ -77,8 +82,25 @@ export const classifyEntry = (entry: LogEntry): EventType | null => {
  * Checks if an entry represents a git operation
  */
 export const isGitOperation = (entry: LogEntry): boolean => {
-  // Check tool name
-  const toolName = entry.tool_name ?? entry.name;
+  // Check tool name at top level
+  let toolName = entry.tool_name ?? entry.name;
+
+  // Also check for tool name inside nested tool_use items in message.content
+  if (!toolName) {
+    const msgContent = entry.message?.content;
+    if (Array.isArray(msgContent)) {
+      for (const item of msgContent) {
+        if (typeof item === 'object' && item !== null) {
+          const contentItem = item as Record<string, unknown>;
+          if (contentItem.type === 'tool_use' && contentItem.name && typeof contentItem.name === 'string') {
+            toolName = contentItem.name;
+            break;
+          }
+        }
+      }
+    }
+  }
+
   if (toolName === 'Bash' || toolName === 'bash') {
     const command = extractBashCommand(entry);
     if (command) {
@@ -96,13 +118,32 @@ export const isGitOperation = (entry: LogEntry): boolean => {
 };
 
 /**
- * Extracts bash command from a tool call entry
+ * Extracts bash command from a tool call entry.
+ * Commands can be at:
+ * - entry.input.command (direct tool_use)
+ * - entry.message.content[i].input.command (tool_use in assistant message)
  */
 export const extractBashCommand = (entry: LogEntry): string | null => {
-  // Check input field for tool_use
+  // Check direct input field for tool_use
   const input = entry.input as Record<string, unknown> | undefined;
   if (input?.command && typeof input.command === 'string') {
     return input.command;
+  }
+
+  // Check message.content array for tool_use items with commands
+  const msgContent = entry.message?.content;
+  if (Array.isArray(msgContent)) {
+    for (const item of msgContent) {
+      if (typeof item === 'object' && item !== null) {
+        const contentItem = item as Record<string, unknown>;
+        if (contentItem.type === 'tool_use') {
+          const toolInput = contentItem.input as Record<string, unknown> | undefined;
+          if (toolInput?.command && typeof toolInput.command === 'string') {
+            return toolInput.command;
+          }
+        }
+      }
+    }
   }
 
   // Check content for tool_result
@@ -111,8 +152,7 @@ export const extractBashCommand = (entry: LogEntry): string | null => {
     return content;
   }
 
-  // Check message content
-  const msgContent = entry.message?.content;
+  // Check message content if it's a string
   if (typeof msgContent === 'string') {
     return msgContent;
   }
@@ -178,25 +218,56 @@ export const calculateEntryTokens = (entry: LogEntry): number => {
 };
 
 /**
- * Converts a log entry to a typed Event
+ * Converts a log entry to a typed Event.
+ * Optionally extracts event tags if extractTags is true.
  */
-export const entryToEvent = (entry: LogEntry): Event | null => {
+export const entryToEvent = (entry: LogEntry, options?: { extractTags?: boolean; eventIndex?: number }): Event | null => {
   const type = classifyEntry(entry);
   if (!type) return null;
 
-  return {
+  const event: Event = {
     type,
     timestamp: entry.timestamp ?? '',
     tokenCount: calculateEntryTokens(entry),
     raw: entry
   };
+
+  // Extract event tags if requested
+  if (options?.extractTags) {
+    const tags = extractEventTagsFromOutcome(event, options.eventIndex ?? 0);
+    if (tags.length > 0) {
+      event.tags = tags;
+    }
+  }
+
+  return event;
+};
+
+/**
+ * Extract event tags from a log entry.
+ * This is a convenience wrapper that creates a temporary event to extract tags.
+ */
+export const extractEventTags = (entry: LogEntry): EventTag[] => {
+  const type = classifyEntry(entry);
+  if (!type) return [];
+
+  const tempEvent: Event = {
+    type,
+    timestamp: entry.timestamp ?? '',
+    tokenCount: 0,
+    raw: entry
+  };
+
+  return extractEventTagsFromOutcome(tempEvent, 0);
 };
 
 /**
  * Extracts all events from log entries
  */
 export const extractEvents = (entries: LogEntry[]): Event[] => {
-  return entries.map(entryToEvent).filter((event): event is Event => event !== null);
+  return entries
+    .map((entry) => entryToEvent(entry))
+    .filter((event): event is Event => event !== null);
 };
 
 /**

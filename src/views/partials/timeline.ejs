@@ -1,0 +1,14 @@
+<%# Timeline content is rendered client-side for interactivity %>
+<%# This partial provides the structure that JS will enhance %>
+
+<div class="timeline-axis"></div>
+<div class="timeline-area">
+  <% if (sessions && sessions.length > 0) { %>
+    <%# Sessions will be rendered by client-side JS for zoom/pan interactivity %>
+    <div class="timeline-content" data-session-count="<%= sessions.length %>"></div>
+  <% } else { %>
+    <div class="timeline-empty">
+      <p>No sessions found. Click "Refresh Logs" to scan for Claude Code sessions.</p>
+    </div>
+  <% } %>
+</div>

@@ -41,6 +41,9 @@
   color: var(--color-text-secondary);
   padding-left: 4px;
   border-left: 1px solid var(--color-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
 }
 
 .timeline-axis-tick.major {
@@ -53,6 +56,8 @@
   overflow-x: auto;
   overflow-y: auto;
   cursor: grab;
+  display: flex;
+  flex-direction: column;
 }
 
 .timeline-area:active {
@@ -63,6 +68,8 @@
 .timeline-content {
   position: relative;
   min-width: 100%;
+  min-height: 100%;
+  flex: 1; /* Fill parent so loading/empty states center properly */
   padding-bottom: 40px; /* Space for fixed footer */
 }
 

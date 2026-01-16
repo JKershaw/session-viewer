@@ -5,9 +5,10 @@
  */
 import { open } from 'node:fs/promises';
 import { basename } from 'node:path';
-import type { ParsedSession, Event } from '../types/index.js';
+import type { ParsedSession, Event, TicketReference, SessionOutcomes } from '../types/index.js';
 import type { LogEntry } from '../types/index.js';
 import { classifyEntry, calculateEntryTokens } from './events.js';
+import { extractEventTags, extractSessionOutcomes, buildTicketReferences, getPrimaryTicketId, extractTicketIds } from './outcome-extractor.js';
 
 // Use a smaller buffer to reduce memory pressure
 const BUFFER_SIZE = 64 * 1024; // 64KB chunks
@@ -102,6 +103,19 @@ export const parseSessionStreaming = async (
     return null;
   }
 
+  // Extract event tags for each event
+  metadata.events.forEach((event, index) => {
+    const tags = extractEventTags(event, index);
+    if (tags.length > 0) {
+      event.tags = tags;
+    }
+  });
+
+  // Extract session outcomes and ticket references
+  const outcomes = extractSessionOutcomes(metadata.events);
+  const ticketReferences = buildTicketReferences(metadata.branch, metadata.events, outcomes);
+  const primaryTicketId = getPrimaryTicketId(ticketReferences);
+
   return {
     id: metadata.id,
     parentSessionId: metadata.parentSessionId,
@@ -111,7 +125,11 @@ export const parseSessionStreaming = async (
     branch: metadata.branch,
     totalTokens: metadata.totalTokens,
     entries: [],
-    events: metadata.events
+    events: metadata.events,
+    // New fields for rich ticket tracking
+    outcomes,
+    ticketReferences,
+    linearTicketId: primaryTicketId
   };
 };
 
@@ -160,9 +178,29 @@ const processLine = (line: string, metadata: StreamingMetadata): void => {
   // Classify and create event
   const type = classifyEntry(entry);
   if (type) {
+    // Extract ticket IDs from full content BEFORE truncation
+    // This ensures we don't miss ticket mentions in long messages
+    let preExtractedTicketIds: string[] | undefined;
+    const fullContent = extractFullContent(entry);
+    if (fullContent) {
+      const ticketIds = extractTicketIds(fullContent);
+      if (ticketIds.length > 0) {
+        preExtractedTicketIds = ticketIds;
+      }
+    }
+
     // Create a truncated version of the entry to limit memory
+    // Explicitly preserve fields needed for analysis (input, tool_name, name, error)
     const truncatedEntry = {
       ...entry,
+      // Preserve tool-related fields (required for trust analysis and git detection)
+      input: entry.input,
+      tool_name: entry.tool_name,
+      name: entry.name,
+      error: entry.error,
+      // Store pre-extracted ticket IDs (extracted before truncation)
+      _extractedTicketIds: preExtractedTicketIds,
+      // Truncate large content fields
       message: entry.message
         ? {
             ...entry.message,
@@ -179,4 +217,32 @@ const processLine = (line: string, metadata: StreamingMetadata): void => {
       raw: truncatedEntry
     });
   }
+};
+
+/**
+ * Extract full text content from an entry before truncation.
+ */
+const extractFullContent = (entry: LogEntry): string | null => {
+  // Check direct content field
+  if (typeof entry.content === 'string') {
+    return entry.content;
+  }
+
+  // Check message.content
+  const msgContent = entry.message?.content;
+  if (typeof msgContent === 'string') {
+    return msgContent;
+  }
+
+  // Handle array content (text blocks)
+  if (Array.isArray(msgContent)) {
+    const texts = msgContent
+      .filter((item) => typeof item === 'object' && item !== null && 'text' in item)
+      .map((item) => (item as { text: string }).text);
+    if (texts.length > 0) {
+      return texts.join('\n');
+    }
+  }
+
+  return null;
 };

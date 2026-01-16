@@ -1,0 +1,61 @@
+<div id="filters" class="filters <%= view !== 'timeline' ? 'hidden' : '' %>">
+  <form id="filter-form" class="filter-form" method="get" action="/">
+    <input type="hidden" name="view" value="<%= view %>">
+
+    <div class="filter-group">
+      <label for="filter-from">From</label>
+      <input type="date" id="filter-from" name="dateFrom" value="<%= filters.dateFrom || '' %>">
+    </div>
+
+    <div class="filter-group">
+      <label for="filter-to">To</label>
+      <input type="date" id="filter-to" name="dateTo" value="<%= filters.dateTo || '' %>">
+    </div>
+
+    <div class="filter-group">
+      <label for="filter-folder">Folder</label>
+      <select id="filter-folder" name="folder" aria-label="Filter by folder">
+        <option value="">All folders</option>
+        <% if (Array.isArray(filterOptions?.folders)) { %>
+          <% filterOptions.folders.forEach(folder => { %>
+            <option value="<%= folder %>" <%= filters.folder === folder ? 'selected' : '' %>><%= folder %></option>
+          <% }) %>
+        <% } %>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label for="filter-branch">Branch</label>
+      <select id="filter-branch" name="branch" aria-label="Filter by branch">
+        <option value="">All branches</option>
+        <% if (Array.isArray(filterOptions?.branches)) { %>
+          <% filterOptions.branches.forEach(branch => { %>
+            <option value="<%= branch %>" <%= filters.branch === branch ? 'selected' : '' %>><%= branch %></option>
+          <% }) %>
+        <% } %>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label for="filter-ticket">Ticket</label>
+      <select id="filter-ticket" name="ticket" aria-label="Filter by ticket">
+        <option value="">All tickets</option>
+        <% if (Array.isArray(filterOptions?.tickets)) { %>
+          <% filterOptions.tickets.forEach(ticket => { %>
+            <option value="<%= ticket %>" <%= filters.ticket === ticket ? 'selected' : '' %>><%= ticket %></option>
+          <% }) %>
+        <% } %>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label for="filter-zoom">Zoom</label>
+      <input type="range" id="filter-zoom" name="zoom" min="1" max="500" value="<%= filters.zoom || 10 %>">
+    </div>
+
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-sm">Apply</button>
+      <button type="button" class="btn btn-sm" id="btn-clear-filters">Clear Filters</button>
+    </div>
+  </form>
+</div>

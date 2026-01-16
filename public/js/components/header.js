@@ -1,7 +1,7 @@
 /**
  * Header component with title and action buttons.
  */
-import { store, setLoading, setError, setSessions } from '../state/store.js';
+import { store, setLoading, setError, setSuccess, setSessions } from '../state/store.js';
 import { api } from '../api/client.js';
 import { div, button, span, h1, $ } from '../utils/dom.js';
 
@@ -114,6 +114,7 @@ export const initHeader = (container) => {
       });
       setSessions(sortedSessions);
       setError(null);
+      setSuccess(`Refreshed ${sortedSessions.length} sessions`);
     } catch (err) {
       console.error('Refresh failed:', err);
       setError(err.message);
@@ -133,8 +134,24 @@ export const initHeader = (container) => {
     render();
 
     try {
-      await api.syncLinear();
+      const result = await api.syncLinear();
+
+      // Reload sessions to get updated ticket links
+      const sessionsResult = await api.getSessions({ limit: 10000, includeEvents: true });
+      const sortedSessions = sessionsResult.data.sort((a, b) => {
+        const timeA = a.startTime ? new Date(a.startTime).getTime() : NaN;
+        const timeB = b.startTime ? new Date(b.startTime).getTime() : NaN;
+        const validA = !isNaN(timeA);
+        const validB = !isNaN(timeB);
+        if (!validA && !validB) return 0;
+        if (!validA) return 1;
+        if (!validB) return -1;
+        return timeB - timeA;
+      });
+      setSessions(sortedSessions);
+
       setError(null);
+      setSuccess(`Synced ${result.ticketCount} tickets, linked ${result.linkedSessions} sessions`);
     } catch (err) {
       console.error('Sync failed:', err);
       setError(err.message);

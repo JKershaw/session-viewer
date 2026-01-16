@@ -6,6 +6,7 @@
 @import './components/detail-panel.css';
 @import './components/trust-dashboard.css';
 @import './components/tooltip.css';
+@import './components/notifications.css';
 
 /* CSS Variables */
 :root {

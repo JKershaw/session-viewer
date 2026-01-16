@@ -65,6 +65,7 @@ export const store = createStore({
   // UI state
   loading: false,
   error: null,
+  success: null,
   detailPanelOpen: false,
 
   // View state for navigation
@@ -85,6 +86,7 @@ export const store = createStore({
 // Convenience methods for common state updates
 export const setLoading = (loading) => store.setState({ loading });
 export const setError = (error) => store.setState({ error });
+export const setSuccess = (success) => store.setState({ success });
 export const setSessions = (sessions) => store.setState({ sessions });
 export const setSelectedSession = (session) => store.setState({
   selectedSession: session,

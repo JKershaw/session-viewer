@@ -1,0 +1,18 @@
+<nav id="navigation" class="navigation">
+  <div class="nav-tabs" role="tablist" aria-label="Main navigation">
+    <a href="/?view=timeline"
+       class="nav-tab <%= view === 'timeline' ? 'active' : '' %>"
+       role="tab"
+       aria-selected="<%= view === 'timeline' ? 'true' : 'false' %>"
+       data-view="timeline">
+      Sessions Timeline
+    </a>
+    <a href="/?view=trust-dashboard"
+       class="nav-tab <%= view === 'trust-dashboard' ? 'active' : '' %>"
+       role="tab"
+       aria-selected="<%= view === 'trust-dashboard' ? 'true' : 'false' %>"
+       data-view="trust-dashboard">
+      Trust Dashboard
+    </a>
+  </div>
+</nav>
