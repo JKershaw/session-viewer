@@ -11,8 +11,11 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never', outputFolder: './playwright-report' }]],
   timeout: 30000,
 
+  globalSetup: './tests/e2e/global-setup.ts',
+  globalTeardown: './tests/e2e/global-teardown.ts',
+
   use: {
-    baseURL: 'http://localhost:3009',
+    baseURL: 'http://localhost:3010',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     headless: true,
@@ -39,8 +42,12 @@ export default defineConfig({
 
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:3009',
-    reuseExistingServer: true,
+    url: 'http://localhost:3010',
+    reuseExistingServer: false,
     timeout: 120 * 1000,
+    env: {
+      PORT: '3010',
+      DATA_DIR: './data/test',
+    },
   },
 });
