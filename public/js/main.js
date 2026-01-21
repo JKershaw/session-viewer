@@ -1,13 +1,14 @@
 /**
  * Main entry point for the Session Analyzer frontend.
  */
-import { store, setFilterOptions } from './state/store.js';
+import { store, setFilterOptions, setView } from './state/store.js';
 import { api } from './api/client.js';
 import { initHeader } from './components/header.js';
 import { initNavigation } from './components/navigation.js';
 import { initFilters, extractFilterOptions } from './components/filters.js';
 import { initTimeline } from './components/timeline.js';
 import { initTrustDashboard } from './components/trust-dashboard.js';
+import { initDispatch } from './components/dispatch.js';
 import { initDetailPanel } from './components/detail-panel.js';
 import { initFooter } from './components/footer.js';
 import { initTooltip } from './components/tooltip.js';
@@ -29,6 +30,15 @@ const hasServerContent = (el) => {
  * Initialize the application.
  */
 const init = async () => {
+  // Sync view state from URL query parameter
+  const urlParams = new URLSearchParams(window.location.search);
+  const viewParam = urlParams.get('view');
+  const VALID_VIEWS = ['timeline', 'trust-dashboard', 'dispatch'];
+  if (viewParam && VALID_VIEWS.includes(viewParam)) {
+    console.log('[Main] Setting initial view from URL:', viewParam);
+    setView(viewParam);
+  }
+
   // Initialize tooltip (global)
   initTooltip();
 
@@ -42,6 +52,7 @@ const init = async () => {
   const filtersEl = $('filters');
   const timelineEl = $('timeline');
   const trustDashboardEl = $('trust-dashboard');
+  const dispatchEl = $('dispatch');
   const detailPanelEl = $('detail-panel');
   const footerEl = $('footer');
 
@@ -53,9 +64,10 @@ const init = async () => {
   if (filtersEl && !hasServerContent(filtersEl)) initFilters(filtersEl);
   if (footerEl && !hasServerContent(footerEl)) initFooter(footerEl);
 
-  // Timeline, detail panel, trust dashboard: always init (they need JS interactivity)
+  // Timeline, detail panel, trust dashboard, dispatch: always init (they need JS interactivity)
   if (timelineEl) initTimeline(timelineEl);
   if (trustDashboardEl) initTrustDashboard(trustDashboardEl);
+  if (dispatchEl) initDispatch(dispatchEl);
   if (detailPanelEl) initDetailPanel(detailPanelEl);
 
   // Load initial filter options

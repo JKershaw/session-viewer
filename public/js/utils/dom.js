@@ -52,6 +52,7 @@ export const label = (attrs, children) => createElement('label', attrs, children
 export const h1 = (attrs, children) => createElement('h1', attrs, children);
 export const h2 = (attrs, children) => createElement('h2', attrs, children);
 export const h3 = (attrs, children) => createElement('h3', attrs, children);
+export const a = (attrs, children) => createElement('a', attrs, children);
 
 /**
  * Clear all children from an element.

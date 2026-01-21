@@ -80,6 +80,15 @@ export const store = createStore({
     loading: false,
     error: null,
     lastComputed: null
+  },
+
+  // Dispatch state
+  dispatch: {
+    available: [],       // Available prompts from dispatch queue
+    claimed: [],         // Locally claimed prompts
+    loading: false,
+    error: null,
+    configured: false    // Whether dispatch is configured
   }
 });
 
@@ -131,4 +140,36 @@ export const setTrustLoading = (loading) => store.setState(state => ({
 
 export const setTrustError = (error) => store.setState(state => ({
   trust: { ...state.trust, error }
+}));
+
+// Dispatch state convenience methods
+export const setDispatchAvailable = (available) => store.setState(state => ({
+  dispatch: { ...state.dispatch, available }
+}));
+
+export const setDispatchClaimed = (claimed) => store.setState(state => ({
+  dispatch: { ...state.dispatch, claimed }
+}));
+
+export const addDispatchClaimed = (prompt) => store.setState(state => ({
+  dispatch: { ...state.dispatch, claimed: [...state.dispatch.claimed, prompt] }
+}));
+
+export const removeDispatchClaimed = (id) => store.setState(state => ({
+  dispatch: {
+    ...state.dispatch,
+    claimed: state.dispatch.claimed.filter(p => p.id !== id)
+  }
+}));
+
+export const setDispatchLoading = (loading) => store.setState(state => ({
+  dispatch: { ...state.dispatch, loading }
+}));
+
+export const setDispatchError = (error) => store.setState(state => ({
+  dispatch: { ...state.dispatch, error }
+}));
+
+export const setDispatchConfigured = (configured) => store.setState(state => ({
+  dispatch: { ...state.dispatch, configured }
 }));

@@ -24,6 +24,11 @@
       <%- include('../partials/trust-dashboard', { trustMap }) %>
     </main>
 
+    <!-- View: Dispatch -->
+    <main id="dispatch" class="dispatch view-content <%= view !== 'dispatch' ? 'hidden' : '' %>">
+      <%- include('../partials/dispatch', { claimedPrompts: typeof claimedPrompts !== 'undefined' ? claimedPrompts : [] }) %>
+    </main>
+
     <aside id="detail-panel" class="detail-panel"></aside>
 
     <div id="tooltip" class="tooltip hidden"></div>

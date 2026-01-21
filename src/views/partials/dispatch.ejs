@@ -1,0 +1,64 @@
+<div class="dispatch-container">
+  <div class="dispatch-header">
+    <h2>Dispatch Queue</h2>
+    <% if (typeof dispatchConfigured !== 'undefined' && dispatchConfigured) { %>
+      <button id="dispatch-refresh-btn" class="btn">Refresh Available</button>
+    <% } %>
+  </div>
+
+  <% if (typeof dispatchConfigured === 'undefined' || !dispatchConfigured) { %>
+    <div class="dispatch-not-configured">
+      <div class="dispatch-empty-icon">!</div>
+      <div class="dispatch-empty-title">Dispatch Not Configured</div>
+      <div class="dispatch-empty-text">
+        Set <code>DISPATCH_TOKEN</code> and optionally <code>DISPATCH_URL</code> environment variables to enable the dispatch queue.
+        See <code>.env.example</code> for details.
+      </div>
+    </div>
+  <% } else { %>
+    <section class="dispatch-section">
+      <h3>Available Prompts</h3>
+      <div id="dispatch-available-list" class="dispatch-list">
+        <div class="dispatch-empty-state">
+          Click "Refresh Available" to load prompts from the dispatch queue.
+        </div>
+      </div>
+    </section>
+
+    <section class="dispatch-section">
+      <h3>Claimed Prompts</h3>
+      <div id="dispatch-claimed-list" class="dispatch-list">
+        <% if (typeof claimedPrompts !== 'undefined' && claimedPrompts.length > 0) { %>
+          <% claimedPrompts.forEach(prompt => { %>
+            <div class="dispatch-item claimed" data-id="<%= prompt.id %>">
+              <div class="dispatch-item-header">
+                <span class="dispatch-item-name"><%= prompt.promptName || 'Unnamed Prompt' %></span>
+              </div>
+              <div class="dispatch-item-ticket">
+                <% if (prompt.issueUrl) { %>
+                  <a href="<%= prompt.issueUrl %>" target="_blank" rel="noopener noreferrer">
+                    <%= prompt.issueIdentifier %>: <%= prompt.issueTitle %>
+                  </a>
+                <% } else { %>
+                  <span>No linked issue</span>
+                <% } %>
+              </div>
+              <div class="dispatch-item-prompt"><%= prompt.prompt.substring(0, 200) %><%= prompt.prompt.length > 200 ? '...' : '' %></div>
+              <div class="dispatch-item-meta">
+                <span>Workspace: <%= prompt.workspaceUrlKey || 'Unknown' %></span>
+                <span>Claimed: <%= new Date(prompt.claimedAt).toLocaleString() %></span>
+              </div>
+              <div class="dispatch-item-actions">
+                <button class="btn btn-delete dispatch-delete-btn" data-id="<%= prompt.id %>">Delete</button>
+              </div>
+            </div>
+          <% }); %>
+        <% } else { %>
+          <div class="dispatch-empty-state">
+            No claimed prompts yet. Claim prompts from the available queue above.
+          </div>
+        <% } %>
+      </div>
+    </section>
+  <% } %>
+</div>

@@ -188,5 +188,34 @@ export interface TimelineResult {
   latestTime: string | null;
 }
 
+// Dispatch types - matches LinearViewer API format
+// See: https://github.com/JKershaw/LinearViewer/blob/main/docs/dispatch-integration.md
+export interface DispatchQueueItem {
+  id: string;
+  prompt: string;
+  promptName: string;
+  issueId: string | null;
+  issueIdentifier: string | null;
+  issueTitle: string | null;
+  issueUrl: string | null;
+  workspace: { urlKey: string };
+  dispatchedAt: string;
+  dispatchedBy: string | null;
+  expiresAt: string;
+}
+
+export interface ClaimedPrompt {
+  id: string;
+  prompt: string;
+  promptName: string;
+  issueId: string | null;
+  issueIdentifier: string | null;
+  issueTitle: string | null;
+  issueUrl: string | null;
+  workspaceUrlKey: string;
+  claimedAt: string;
+  [key: string]: unknown;
+}
+
 // Re-export trust types
 export * from './trust.js';

@@ -178,5 +178,51 @@ export const api = {
   async getTrustByArea() {
     const response = await fetch(`${BASE_URL}/trust/areas`);
     return handleResponse(response);
+  },
+
+  // Dispatch API
+
+  /**
+   * Get dispatch configuration status.
+   */
+  async getDispatchStatus() {
+    const response = await fetch(`${BASE_URL}/dispatch/status`);
+    return handleResponse(response);
+  },
+
+  /**
+   * Get available dispatch prompts.
+   */
+  async getDispatchAvailable() {
+    const response = await fetch(`${BASE_URL}/dispatch/available`);
+    return handleResponse(response);
+  },
+
+  /**
+   * Claim a dispatch item.
+   */
+  async claimDispatchItem(itemId) {
+    const response = await fetch(`${BASE_URL}/dispatch/claim/${itemId}`, {
+      method: 'POST'
+    });
+    return handleResponse(response);
+  },
+
+  /**
+   * Get all claimed prompts.
+   */
+  async getClaimedPrompts() {
+    const response = await fetch(`${BASE_URL}/dispatch/claimed`);
+    return handleResponse(response);
+  },
+
+  /**
+   * Delete a claimed prompt.
+   */
+  async deleteClaimedPrompt(id) {
+    const response = await fetch(`${BASE_URL}/dispatch/claimed/${id}`, {
+      method: 'DELETE'
+    });
+    return handleResponse(response);
   }
 };

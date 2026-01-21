@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { SessionRepository } from '../db/sessions.js';
 import type { TicketRepository } from '../db/tickets.js';
 import type { TrustRepository } from '../db/trust.js';
+import type { DispatchRepository } from '../db/dispatch.js';
 import type { JobQueue } from '../queue/jobs.js';
 import type { ScanConfig } from '../parser/scanner.js';
 import { createSessionRoutes } from './routes/sessions.js';
@@ -12,6 +13,8 @@ import { createTicketRoutes } from './routes/tickets.js';
 import { createLinearRoutes } from './routes/linear.js';
 import { createRefreshRoutes } from './routes/refresh.js';
 import { createTrustRoutes } from './routes/trust.js';
+import { createDispatchRoutes } from './routes/dispatch.js';
+import { getDispatchConfig } from '../dispatch/client.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,6 +29,7 @@ export interface AppRepositories {
   sessions: SessionRepository;
   tickets?: TicketRepository;
   trust?: TrustRepository;
+  dispatch?: DispatchRepository;
 }
 
 export const createApp = (
@@ -75,6 +79,13 @@ export const createApp = (
     }));
   }
 
+  // Dispatch routes (only if dispatch repo available)
+  if (repos.dispatch) {
+    app.use('/api/dispatch', createDispatchRoutes({
+      dispatchRepo: repos.dispatch
+    }));
+  }
+
   // Error handler
   app.use(errorHandler);
 
@@ -82,7 +93,7 @@ export const createApp = (
   app.get('/', async (req: Request, res: Response) => {
     try {
       // Validate view parameter against whitelist
-      const VALID_VIEWS = ['timeline', 'trust-dashboard'] as const;
+      const VALID_VIEWS = ['timeline', 'trust-dashboard', 'dispatch'] as const;
       const requestedView = req.query.view as string;
       const view = VALID_VIEWS.includes(requestedView as typeof VALID_VIEWS[number])
         ? requestedView
@@ -120,6 +131,13 @@ export const createApp = (
         trustMap = await repos.trust.getTrustMap();
       }
 
+      // Fetch claimed prompts if on dispatch view
+      let claimedPrompts: unknown[] = [];
+      const dispatchConfigured = !!getDispatchConfig();
+      if (view === 'dispatch' && repos.dispatch) {
+        claimedPrompts = await repos.dispatch.getAllClaimedPrompts();
+      }
+
       res.render('index', {
         title: 'Claude Code Session Analyzer',
         view,
@@ -130,7 +148,9 @@ export const createApp = (
           tickets: Array.from(tickets).sort()
         },
         sessions,
-        trustMap
+        trustMap,
+        claimedPrompts,
+        dispatchConfigured
       });
     } catch (error) {
       console.error('Error rendering view:', error);

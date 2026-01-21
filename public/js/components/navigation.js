@@ -11,7 +11,8 @@ export const initNavigation = (container) => {
 
     const tabs = [
       { id: 'timeline', label: 'Sessions Timeline' },
-      { id: 'trust-dashboard', label: 'Trust Dashboard' }
+      { id: 'trust-dashboard', label: 'Trust Dashboard' },
+      { id: 'dispatch', label: 'Dispatch' }
     ];
 
     const tabButtons = tabs.map(tab =>
