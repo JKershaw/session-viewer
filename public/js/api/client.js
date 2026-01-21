@@ -224,5 +224,75 @@ export const api = {
       method: 'DELETE'
     });
     return handleResponse(response);
+  },
+
+  // Auto-claim settings API
+
+  /**
+   * Get current auto-claim settings.
+   */
+  async getAutoClaimSettings() {
+    const response = await fetch(`${BASE_URL}/dispatch/settings`);
+    return handleResponse(response);
+  },
+
+  /**
+   * Update auto-claim settings.
+   */
+  async updateAutoClaimSettings(settings) {
+    const response = await fetch(`${BASE_URL}/dispatch/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings)
+    });
+    return handleResponse(response);
+  },
+
+  /**
+   * Toggle auto-claim enabled state.
+   */
+  async toggleAutoClaim() {
+    const response = await fetch(`${BASE_URL}/dispatch/settings/toggle`, {
+      method: 'POST'
+    });
+    return handleResponse(response);
+  },
+
+  /**
+   * Subscribe to auto-claim events via SSE.
+   * @param {Object} callbacks - Event callbacks
+   * @param {Function} callbacks.onClaim - Called when a prompt is auto-claimed
+   * @param {Function} callbacks.onError - Called on auto-claim error
+   * @param {Function} callbacks.onStatusChange - Called when auto-claim is enabled/disabled
+   * @returns {Function} Cleanup function to unsubscribe
+   */
+  subscribeToAutoClaimEvents({ onClaim, onError, onStatusChange }) {
+    const eventSource = new EventSource(`${BASE_URL}/dispatch/events`);
+
+    eventSource.addEventListener('claim', (event) => {
+      const data = JSON.parse(event.data);
+      onClaim?.(data);
+    });
+
+    eventSource.addEventListener('error', (event) => {
+      if (event.data) {
+        const data = JSON.parse(event.data);
+        onError?.(data);
+      }
+    });
+
+    eventSource.addEventListener('status_change', (event) => {
+      const data = JSON.parse(event.data);
+      onStatusChange?.(data);
+    });
+
+    eventSource.onerror = () => {
+      // Connection error - auto-reconnect is handled by EventSource
+      console.warn('[AutoClaim] SSE connection error, will auto-reconnect');
+    };
+
+    return () => {
+      eventSource.close();
+    };
   }
 };

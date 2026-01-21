@@ -6,19 +6,23 @@
 
 import { Router, type Request, type Response } from 'express';
 import type { DispatchRepository } from '../../db/dispatch.js';
-import type { ClaimedPrompt, DispatchQueueItem } from '../../types/index.js';
+import type { DispatchSettingsRepository } from '../../db/dispatch-settings.js';
+import type { ClaimedPrompt, DispatchQueueItem, AutoClaimSettings } from '../../types/index.js';
 import {
   getDispatchConfig,
   createDispatchClient,
   type DispatchClient
 } from '../../dispatch/client.js';
+import type { AutoClaimPoller } from '../../dispatch/auto-claim-poller.js';
 
 export interface DispatchRoutesConfig {
   dispatchRepo: DispatchRepository;
+  settingsRepo?: DispatchSettingsRepository;
+  autoClaimPoller?: AutoClaimPoller;
 }
 
 export const createDispatchRoutes = (config: DispatchRoutesConfig): Router => {
-  const { dispatchRepo } = config;
+  const { dispatchRepo, settingsRepo, autoClaimPoller } = config;
   const router = Router();
 
   // Lazily create client when needed
@@ -152,6 +156,130 @@ export const createDispatchRoutes = (config: DispatchRoutesConfig): Router => {
       console.error('Delete claimed prompt error:', error);
       res.status(500).json({ error: 'Failed to delete claimed prompt' });
     }
+  });
+
+  /**
+   * GET /api/dispatch/settings
+   * Get current auto-claim settings
+   */
+  router.get('/settings', async (_req: Request, res: Response) => {
+    try {
+      if (!settingsRepo) {
+        res.status(503).json({ error: 'Settings repository not configured' });
+        return;
+      }
+
+      const settings = await settingsRepo.getSettings();
+      const pollerRunning = autoClaimPoller?.isRunning() ?? false;
+
+      res.json({ ...settings, pollerRunning });
+    } catch (error) {
+      console.error('Get settings error:', error);
+      res.status(500).json({ error: 'Failed to get settings' });
+    }
+  });
+
+  /**
+   * PUT /api/dispatch/settings
+   * Update auto-claim settings
+   */
+  router.put('/settings', async (req: Request, res: Response) => {
+    try {
+      if (!settingsRepo) {
+        res.status(503).json({ error: 'Settings repository not configured' });
+        return;
+      }
+
+      const updates: Partial<AutoClaimSettings> = {};
+
+      if (typeof req.body.enabled === 'boolean') {
+        updates.enabled = req.body.enabled;
+      }
+      if (typeof req.body.pollingIntervalMs === 'number' && req.body.pollingIntervalMs >= 1000) {
+        updates.pollingIntervalMs = req.body.pollingIntervalMs;
+      }
+      if (typeof req.body.maxClaimsPerPoll === 'number' && req.body.maxClaimsPerPoll >= 1) {
+        updates.maxClaimsPerPoll = req.body.maxClaimsPerPoll;
+      }
+
+      const settings = await settingsRepo.updateSettings(updates);
+
+      // Start/stop poller based on enabled state
+      if (autoClaimPoller) {
+        if (settings.enabled && !autoClaimPoller.isRunning()) {
+          await autoClaimPoller.start();
+        } else if (!settings.enabled && autoClaimPoller.isRunning()) {
+          autoClaimPoller.stop();
+        }
+      }
+
+      const pollerRunning = autoClaimPoller?.isRunning() ?? false;
+      res.json({ ...settings, pollerRunning });
+    } catch (error) {
+      console.error('Update settings error:', error);
+      res.status(500).json({ error: 'Failed to update settings' });
+    }
+  });
+
+  /**
+   * POST /api/dispatch/settings/toggle
+   * Quick toggle for enabled state
+   */
+  router.post('/settings/toggle', async (_req: Request, res: Response) => {
+    try {
+      if (!settingsRepo) {
+        res.status(503).json({ error: 'Settings repository not configured' });
+        return;
+      }
+
+      const current = await settingsRepo.getSettings();
+      const settings = await settingsRepo.updateSettings({ enabled: !current.enabled });
+
+      // Start/stop poller based on new enabled state
+      if (autoClaimPoller) {
+        if (settings.enabled && !autoClaimPoller.isRunning()) {
+          await autoClaimPoller.start();
+        } else if (!settings.enabled && autoClaimPoller.isRunning()) {
+          autoClaimPoller.stop();
+        }
+      }
+
+      const pollerRunning = autoClaimPoller?.isRunning() ?? false;
+      res.json({ ...settings, pollerRunning });
+    } catch (error) {
+      console.error('Toggle settings error:', error);
+      res.status(500).json({ error: 'Failed to toggle settings' });
+    }
+  });
+
+  /**
+   * GET /api/dispatch/events
+   * SSE endpoint for real-time auto-claim notifications
+   */
+  router.get('/events', (req: Request, res: Response) => {
+    if (!autoClaimPoller) {
+      res.status(503).json({ error: 'Auto-claim poller not configured' });
+      return;
+    }
+
+    // Set up SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    // Send initial connection event
+    res.write(`event: connected\ndata: ${JSON.stringify({ timestamp: new Date().toISOString() })}\n\n`);
+
+    // Subscribe to poller events
+    const unsubscribe = autoClaimPoller.onEvent((event) => {
+      res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+    });
+
+    // Handle client disconnect
+    req.on('close', () => {
+      unsubscribe();
+    });
   });
 
   return router;

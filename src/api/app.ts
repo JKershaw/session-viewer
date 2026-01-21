@@ -5,8 +5,10 @@ import type { SessionRepository } from '../db/sessions.js';
 import type { TicketRepository } from '../db/tickets.js';
 import type { TrustRepository } from '../db/trust.js';
 import type { DispatchRepository } from '../db/dispatch.js';
+import type { DispatchSettingsRepository } from '../db/dispatch-settings.js';
 import type { JobQueue } from '../queue/jobs.js';
 import type { ScanConfig } from '../parser/scanner.js';
+import type { AutoClaimPoller } from '../dispatch/auto-claim-poller.js';
 import { createSessionRoutes } from './routes/sessions.js';
 import { createJobRoutes } from './routes/jobs.js';
 import { createTicketRoutes } from './routes/tickets.js';
@@ -30,12 +32,14 @@ export interface AppRepositories {
   tickets?: TicketRepository;
   trust?: TrustRepository;
   dispatch?: DispatchRepository;
+  dispatchSettings?: DispatchSettingsRepository;
 }
 
 export const createApp = (
   repos: AppRepositories,
   config: AppConfig = {},
-  jobQueue?: JobQueue
+  jobQueue?: JobQueue,
+  autoClaimPoller?: AutoClaimPoller
 ): Express => {
   const app = express();
 
@@ -82,7 +86,9 @@ export const createApp = (
   // Dispatch routes (only if dispatch repo available)
   if (repos.dispatch) {
     app.use('/api/dispatch', createDispatchRoutes({
-      dispatchRepo: repos.dispatch
+      dispatchRepo: repos.dispatch,
+      settingsRepo: repos.dispatchSettings,
+      autoClaimPoller
     }));
   }
 

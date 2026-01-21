@@ -88,7 +88,18 @@ export const store = createStore({
     claimed: [],         // Locally claimed prompts
     loading: false,
     error: null,
-    configured: false    // Whether dispatch is configured
+    configured: false,   // Whether dispatch is configured
+    // Auto-claim settings
+    settings: {
+      enabled: false,
+      pollingIntervalMs: 3000,
+      maxClaimsPerPoll: 1,
+      lastPollAt: null,
+      lastClaimAt: null,
+      lastError: null,
+      totalClaimedCount: 0,
+      pollerRunning: false
+    }
   }
 });
 
@@ -172,4 +183,8 @@ export const setDispatchError = (error) => store.setState(state => ({
 
 export const setDispatchConfigured = (configured) => store.setState(state => ({
   dispatch: { ...state.dispatch, configured }
+}));
+
+export const setDispatchSettings = (settings) => store.setState(state => ({
+  dispatch: { ...state.dispatch, settings: { ...state.dispatch.settings, ...settings } }
 }));

@@ -9,13 +9,15 @@ import {
   removeDispatchClaimed,
   setDispatchLoading,
   setDispatchError,
-  setDispatchConfigured
+  setDispatchConfigured,
+  setDispatchSettings
 } from '../state/store.js';
 import { api } from '../api/client.js';
 import { div, button, span, h3, a } from '../utils/dom.js';
 import { notify } from './notifications.js';
 
 let initialized = false;
+let sseCleanup = null;
 
 const createSpinner = () => div({ className: 'spinner' });
 
@@ -101,6 +103,17 @@ export const initDispatch = (container) => {
     // Don't render if not on dispatch view
     if (state.view !== 'dispatch') return;
 
+    // Auto-claim toggle button
+    const { settings } = dispatch;
+    const toggleBtn = button(
+      {
+        className: `btn auto-claim-toggle ${settings.enabled ? 'active' : ''}`,
+        onClick: handleToggleAutoClaim,
+        disabled: dispatch.loading ? 'disabled' : null
+      },
+      settings.enabled ? 'Auto-Claim: ON' : 'Auto-Claim: OFF'
+    );
+
     // Header
     const refreshBtn = button(
       {
@@ -118,7 +131,7 @@ export const initDispatch = (container) => {
 
     const header = div({ className: 'dispatch-header' }, [
       div({ className: 'dispatch-header-title' }, 'Dispatch Queue'),
-      refreshBtn
+      div({ className: 'dispatch-header-actions' }, [toggleBtn, refreshBtn])
     ]);
 
     // Error display
@@ -128,6 +141,18 @@ export const initDispatch = (container) => {
           button({ className: 'btn', onClick: handleRefresh, style: 'margin-left: 12px' }, 'Retry')
         ])
       : null;
+
+    // Auto-claim status display (when enabled)
+    const autoClaimStatus = settings.enabled ? div({ className: 'auto-claim-status' }, [
+      span({ className: 'auto-claim-status-indicator active' }),
+      span({}, `Polling every ${settings.pollingIntervalMs / 1000}s`),
+      settings.totalClaimedCount > 0 ?
+        span({ className: 'auto-claim-count' }, `${settings.totalClaimedCount} auto-claimed`) : null,
+      settings.lastPollAt ?
+        span({ className: 'auto-claim-last-poll' }, `Last poll: ${formatRelativeTime(settings.lastPollAt)}`) : null,
+      settings.lastError ?
+        span({ className: 'auto-claim-error' }, `Error: ${settings.lastError}`) : null
+    ].filter(Boolean)) : null;
 
     // Not configured message
     if (!dispatch.configured && !dispatch.loading) {
@@ -172,11 +197,27 @@ export const initDispatch = (container) => {
     container.appendChild(
       div({ className: 'dispatch-container' }, [
         header,
+        autoClaimStatus,
         errorDisplay,
         availableSection,
         claimedSection
       ].filter(Boolean))
     );
+  };
+
+  // Format relative time for display
+  const formatRelativeTime = (isoString) => {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffSecs = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+
+    if (diffSecs < 60) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return date.toLocaleDateString();
   };
 
   const checkConfigured = async () => {
@@ -222,7 +263,8 @@ export const initDispatch = (container) => {
       console.log('[Dispatch] Fetching available prompts...');
       const [availableResponse] = await Promise.all([
         api.getDispatchAvailable(),
-        loadClaimedPrompts()
+        loadClaimedPrompts(),
+        loadSettings()
       ]);
 
       console.log('[Dispatch] Available prompts received:', availableResponse);
@@ -276,6 +318,85 @@ export const initDispatch = (container) => {
       notify.success('Prompt deleted');
     } catch (err) {
       notify.error(`Failed to delete: ${err.message}`);
+    }
+  };
+
+  const handleToggleAutoClaim = async () => {
+    try {
+      setDispatchLoading(true);
+      const settings = await api.toggleAutoClaim();
+      setDispatchSettings(settings);
+
+      if (settings.enabled) {
+        notify.success('Auto-claim enabled');
+        subscribeToSSE();
+      } else {
+        notify.success('Auto-claim disabled');
+        unsubscribeFromSSE();
+      }
+    } catch (err) {
+      notify.error(`Failed to toggle auto-claim: ${err.message}`);
+    } finally {
+      setDispatchLoading(false);
+    }
+  };
+
+  const loadSettings = async () => {
+    try {
+      const settings = await api.getAutoClaimSettings();
+      setDispatchSettings(settings);
+
+      // Subscribe to SSE if enabled
+      if (settings.enabled) {
+        subscribeToSSE();
+      }
+    } catch (err) {
+      console.error('[Dispatch] Failed to load settings:', err);
+    }
+  };
+
+  const subscribeToSSE = () => {
+    // Clean up existing subscription
+    if (sseCleanup) {
+      sseCleanup();
+      sseCleanup = null;
+    }
+
+    console.log('[Dispatch] Subscribing to auto-claim events');
+    sseCleanup = api.subscribeToAutoClaimEvents({
+      onClaim: (event) => {
+        console.log('[Dispatch] Auto-claim event:', event);
+        const prompt = event.data;
+        addDispatchClaimed(prompt);
+
+        // Remove from available list if present
+        const state = store.getState();
+        const newAvailable = state.dispatch.available.filter(item => item.id !== prompt.id);
+        if (newAvailable.length !== state.dispatch.available.length) {
+          setDispatchAvailable(newAvailable);
+        }
+
+        notify.success(`Auto-claimed: ${prompt.promptName || 'Prompt'}`);
+
+        // Update settings with new counts
+        loadSettings();
+      },
+      onError: (event) => {
+        console.error('[Dispatch] Auto-claim error event:', event);
+        setDispatchSettings({ lastError: event.data?.error });
+      },
+      onStatusChange: (event) => {
+        console.log('[Dispatch] Auto-claim status change:', event);
+        setDispatchSettings({ enabled: event.data?.enabled });
+      }
+    });
+  };
+
+  const unsubscribeFromSSE = () => {
+    if (sseCleanup) {
+      console.log('[Dispatch] Unsubscribing from auto-claim events');
+      sseCleanup();
+      sseCleanup = null;
     }
   };
 

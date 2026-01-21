@@ -54,7 +54,8 @@ export const createDispatchClient = (config: DispatchConfig): DispatchClient => 
     }
 
     const result = await response.json();
-    return result as DispatchQueueItem[];
+    // API may return array directly or {items: [...]}
+    return Array.isArray(result) ? result : (result.items || []);
   };
 
   /**

@@ -217,5 +217,22 @@ export interface ClaimedPrompt {
   [key: string]: unknown;
 }
 
+// Auto-claim settings for dispatch queue
+export interface AutoClaimSettings {
+  enabled: boolean;
+  pollingIntervalMs: number;  // Default: 30000
+  maxClaimsPerPoll: number;   // Default: 1
+  lastPollAt: string | null;
+  lastClaimAt: string | null;
+  lastError: string | null;
+  totalClaimedCount: number;
+}
+
+export interface AutoClaimEvent {
+  type: 'claim' | 'error' | 'status_change';
+  timestamp: string;
+  data: ClaimedPrompt | { error: string } | { enabled: boolean };
+}
+
 // Re-export trust types
 export * from './trust.js';
